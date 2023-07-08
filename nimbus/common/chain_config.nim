@@ -224,27 +224,19 @@ macro fillArrayOfTimeBasedForkOptionals(conf, tmp: typed): untyped =
         time    : `conf`.`fieldIdent`,
         name    : `x`)
 
-# ------------------------------------------------------------------------------
-# Public functions
-# ------------------------------------------------------------------------------
 
 proc toHardFork*(map: ForkTransitionTable, forkDeterminer: ForkDeterminationInfo): HardFork =
   for fork in countdown(HardFork.high, HardFork.low):
     if isGTETransitionThreshold(map, forkDeterminer, fork):
       return fork
 
-  # should always have a match
   doAssert(false, "unreachable code")
 
 func forkDeterminationInfoForHeader*(header: BlockHeader): ForkDeterminationInfo =
-  # FIXME-Adam-mightAlsoNeedTTD?
   forkDeterminationInfo(header.blockNumber, header.timestamp)
 
 proc validateChainConfig*(conf: ChainConfig): bool =
   result = true
-
-  # FIXME: factor this to remove the duplication between the
-  # block-based ones and the time-based ones.
 
   var blockNumberBasedForkOptionals: array[forkBlockField.len, BlockNumberBasedForkOptional]
   fillArrayOfBlockNumberBasedForkOptionals(conf, blockNumberBasedForkOptionals)
@@ -265,12 +257,8 @@ proc validateChainConfig*(conf: ChainConfig): bool =
           curNumber=cur.number
         return false
 
-    # If it was optional and not set, then ignore it
     if cur.number.isSome:
       lastBlockNumberBasedFork = cur
-
-  # TODO: check to make sure the timestamps are all past the
-  # block numbers?
 
   var lastTimeBasedFork = timeBasedForkOptionals[0]
   for i in 1..<timeBasedForkOptionals.len:
@@ -352,9 +340,6 @@ proc parseGenesis*(data: string): Genesis
     return nil
 
 proc chainConfigForNetwork*(id: NetworkId): ChainConfig =
-  # For some public networks, NetworkId and ChainId value are identical
-  # but that is not always the case
-
   result = case id
   of MainNet:
     const mainNetTTD = parse("58750000000000000000000",UInt256)

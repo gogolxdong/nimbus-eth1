@@ -72,24 +72,15 @@ proc importBlocks(conf: NimbusConf, com: CommonRef) =
     else:
       quit(QuitSuccess)
 
-proc basicServices(nimbus: NimbusNode,
-                   conf: NimbusConf,
-                   com: CommonRef) =
-  # app wide TxPool singleton
-  # TODO: disable some of txPool internal mechanism if
-  # the engineSigner is zero.
+proc basicServices(nimbus: NimbusNode,conf: NimbusConf,com: CommonRef) =
   nimbus.txPool = TxPoolRef.new(com, conf.engineSigner)
 
-  # chainRef: some name to avoid module-name/filed/function misunderstandings
   nimbus.chainRef = newChain(com)
   if conf.verifyFrom.isSome:
     let verifyFrom = conf.verifyFrom.get()
     nimbus.chainRef.extraValidation = 0 < verifyFrom
     nimbus.chainRef.verifyFrom = verifyFrom
 
-  # this is temporary workaround to track POS transition
-  # until we have proper chain config and hard fork module
-  # see issue #640
   nimbus.merger = MergerRef.new(com.db)
 
 proc manageAccounts(nimbus: NimbusNode, conf: NimbusConf) =
