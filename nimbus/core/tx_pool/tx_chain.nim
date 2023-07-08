@@ -52,10 +52,10 @@ type
     profit: UInt256          ## Net reward (w/o PoW specific block rewards)
     txRoot: Hash256          ## `rootHash` after packing
     stateRoot: Hash256       ## `stateRoot` after packing
-    dataGasUsed:
-      Option[uint64]         ## EIP-4844 block dataGasUsed
-    excessDataGas:
-      Option[uint64]         ## EIP-4844 block excessDataGas
+    # dataGasUsed:
+    #   Option[uint64]         ## EIP-4844 block dataGasUsed
+    # excessDataGas:
+    #   Option[uint64]         ## EIP-4844 block excessDataGas
 
   TxChainRef* = ref object ##\
     ## State cache of the transaction environment for creating a new\
@@ -144,8 +144,8 @@ proc resetTxEnv(dh: TxChainRef; parent: BlockHeader; fee: Option[UInt256])
 
   dh.txEnv.txRoot = EMPTY_ROOT_HASH
   dh.txEnv.stateRoot = dh.txEnv.vmState.parent.stateRoot
-  dh.txEnv.dataGasUsed = none(uint64)
-  dh.txEnv.excessDataGas = none(uint64)
+  # dh.txEnv.dataGasUsed = none(uint64)
+  # dh.txEnv.excessDataGas = none(uint64)
 
 proc update(dh: TxChainRef; parent: BlockHeader)
     {.gcsafe,raises: [CatchableError].} =
@@ -154,10 +154,7 @@ proc update(dh: TxChainRef; parent: BlockHeader)
     timestamp = dh.getTimestamp(parent)
     db  = dh.com.db
     acc = AccountsCache.init(db.db, parent.stateRoot, dh.com.pruneTrie)
-    fee = if dh.com.isLondon(parent.blockNumber + 1, timestamp):
-            some(dh.com.baseFeeGet(parent).uint64.u256)
-          else:
-            UInt256.none()
+    fee = UInt256.none()
 
   # Keep a separate accounts descriptor positioned at the sync point
   dh.roAcc = ReadOnlyStateDB(acc)
@@ -223,12 +220,13 @@ proc getHeader*(dh: TxChainRef): BlockHeader
     # extraData: Blob       # signing data
     # mixDigest: Hash256    # mining hash for given difficulty
     # nonce:     BlockNonce # mining free vaiable
-    fee:         dh.txEnv.vmState.fee,
-    dataGasUsed: dh.txEnv.dataGasUsed,
-    excessDataGas: dh.txEnv.excessDataGas)
+    # fee:         dh.txEnv.vmState.fee,
+    # dataGasUsed: dh.txEnv.dataGasUsed,
+    # excessDataGas: dh.txEnv.excessDataGas
+    )
 
-  if dh.com.forkGTE(Shanghai):
-    result.withdrawalsRoot = some(calcWithdrawalsRoot(dh.withdrawals))
+  # if dh.com.forkGTE(Shanghai):
+  #   result.withdrawalsRoot = some(calcWithdrawalsRoot(dh.withdrawals))
 
   dh.prepareForSeal(result)
 
@@ -321,10 +319,10 @@ proc `baseFee=`*(dh: TxChainRef; val: GasPrice) =
   ## Setter, temorarily overwrites parameter until next `head=` update. This
   ## function would be called in exceptional cases only as this parameter is
   ## determined by the `head=` update.
-  if 0 < val or dh.com.isLondon(dh.txEnv.vmState.blockNumber):
-    dh.txEnv.vmState.fee = some(val.uint64.u256)
-  else:
-    dh.txEnv.vmState.fee = UInt256.none()
+  # if 0 < val or dh.com.isLondon(dh.txEnv.vmState.blockNumber):
+  #   dh.txEnv.vmState.fee = some(val.uint64.u256)
+  # else:
+  dh.txEnv.vmState.fee = UInt256.none()
 
 proc `head=`*(dh: TxChainRef; val: BlockHeader)
     {.gcsafe,raises: [CatchableError].} =
@@ -375,16 +373,16 @@ proc `txRoot=`*(dh: TxChainRef; val: Hash256) =
   ## Setter
   dh.txEnv.txRoot = val
 
-proc `withdrawals=`*(dh: TxChainRef, val: sink seq[Withdrawal]) =
-  dh.withdrawals = system.move(val)
+# proc `withdrawals=`*(dh: TxChainRef, val: sink seq[Withdrawal]) =
+#   dh.withdrawals = system.move(val)
 
-proc `excessDataGas=`*(dh: TxChainRef; val: Option[uint64]) =
-  ## Setter
-  dh.txEnv.excessDataGas = val
+# proc `excessDataGas=`*(dh: TxChainRef; val: Option[uint64]) =
+#   ## Setter
+#   dh.txEnv.excessDataGas = val
 
-proc `dataGasUsed=`*(dh: TxChainRef; val: Option[uint64]) =
-  ## Setter
-  dh.txEnv.dataGasUsed = val
+# proc `dataGasUsed=`*(dh: TxChainRef; val: Option[uint64]) =
+#   ## Setter
+#   dh.txEnv.dataGasUsed = val
 
 # ------------------------------------------------------------------------------
 # End

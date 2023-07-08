@@ -82,19 +82,19 @@ proc procBlkPreamble(vmState: BaseVMState;
       if r.isErr:
         error("error in processing transactions", err=r.error)
 
-  if vmState.determineFork >= FkShanghai:
-    if header.withdrawalsRoot.isNone:
-      raise ValidationError.newException("Post-Shanghai block header must have withdrawalsRoot")
-    if body.withdrawals.isNone:
-      raise ValidationError.newException("Post-Shanghai block body must have withdrawals")
+  # if vmState.determineFork >= FkShanghai:
+  #   if header.withdrawalsRoot.isNone:
+  #     raise ValidationError.newException("Post-Shanghai block header must have withdrawalsRoot")
+  #   if body.withdrawals.isNone:
+  #     raise ValidationError.newException("Post-Shanghai block body must have withdrawals")
 
-    for withdrawal in body.withdrawals.get:
-      vmState.stateDB.addBalance(withdrawal.address, withdrawal.amount.gwei)
-  else:
-    if header.withdrawalsRoot.isSome:
-      raise ValidationError.newException("Pre-Shanghai block header must not have withdrawalsRoot")
-    if body.withdrawals.isSome:
-      raise ValidationError.newException("Pre-Shanghai block body must not have withdrawals")
+  #   for withdrawal in body.withdrawals.get:
+  #     vmState.stateDB.addBalance(withdrawal.address, withdrawal.amount.gwei)
+  # else:
+  #   if header.withdrawalsRoot.isSome:
+  #     raise ValidationError.newException("Pre-Shanghai block header must not have withdrawalsRoot")
+  #   if body.withdrawals.isSome:
+  #     raise ValidationError.newException("Pre-Shanghai block body must not have withdrawals")
 
   if vmState.cumulativeGasUsed != header.gasUsed:
     debug "gasUsed neq cumulativeGasUsed",

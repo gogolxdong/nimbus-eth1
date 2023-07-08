@@ -17,8 +17,11 @@ import
   eth/p2p/peer_pool,
   ".."/[types, protocol],
   ../protocol/eth/eth_types,
-  ../protocol/trace_config, # gossip noise control
-  ../../core/[chain, tx_pool, tx_pool/tx_item]
+  ../protocol/trace_config, 
+  ../../core/[chain, tx_pool, tx_pool/tx_item],
+  ../../core/executor/process_transaction,
+  ../../evm/[types,state],
+  ../../db/storage_types
 
 logScope:
   topics = "eth-wire"
@@ -258,8 +261,7 @@ proc sendTransactions(ctx: EthWireRef,
     debug "Exception in sendTransactions", exc = e.name, err = e.msg
 
 proc fetchTransactions(ctx: EthWireRef, reqHashes: seq[Hash256], peer: Peer): Future[void] {.async.} =
-  debug "fetchTx: requesting txs",
-    number = reqHashes.len
+  debug "fetchTx: requesting txs", number = reqHashes.len
 
   try:
 
@@ -403,8 +405,8 @@ method getStatus*(ctx: EthWireRef): EthState
     genesisHash: com.genesisHash,
     bestBlockHash: bestBlock.blockHash,
     forkId: ChainForkId(
-      forkHash: forkId.crc.toBytesBE,
-      forkNext: forkId.nextFork.toBlockNumber
+      forkHash: [byte(41),149,197,42], #forkId.crc.toBytesBE,
+      forkNext: 0.u256 #forkId.nextFork.toBlockNumber
     )
   )
 
@@ -421,23 +423,23 @@ method getReceipts*(ctx: EthWireRef, hashes: openArray[Hash256]): seq[seq[Receip
 
 method getPooledTxs*(ctx: EthWireRef, hashes: openArray[Hash256]): seq[Transaction] =
   let txPool = ctx.txPool
-  for txHash in hashes:
-    let res = txPool.getItem(txHash)
-    if res.isOk:
-      result.add res.value.tx
-    else:
-      trace "handlers.getPooledTxs: tx not found", txHash
+  # for txHash in hashes:
+  #   let res = txPool.getItem(txHash)
+  #   if res.isOk:
+  #     result.add res.value.tx
+  #   else:
+  #     trace "handlers.getPooledTxs: tx not found", txHash
 
 method getBlockBodies*(ctx: EthWireRef, hashes: openArray[Hash256]): seq[BlockBody]
     {.gcsafe, raises: [RlpError].} =
   let db = ctx.db
   var body: BlockBody
-  for blockHash in hashes:
-    if db.getBlockBody(blockHash, body):
-      result.add body
-    else:
-      result.add BlockBody()
-      trace "handlers.getBlockBodies: blockBody not found", blockHash
+  # for blockHash in hashes:
+  #   if db.getBlockBody(blockHash, body):
+  #     result.add body
+  #   else:
+  #     result.add BlockBody()
+  #     trace "handlers.getBlockBodies: blockBody not found", blockHash
 
 method getBlockHeaders*(ctx: EthWireRef, req: BlocksRequest): seq[BlockHeader]
     {.gcsafe, raises: [RlpError].} =
@@ -448,17 +450,16 @@ method getBlockHeaders*(ctx: EthWireRef, req: BlocksRequest): seq[BlockHeader]
   if db.blockHeader(req.startBlock, foundBlock):
     result.add foundBlock
 
-    while uint64(result.len) < req.maxResults:
-      if not req.reverse:
-        if not db.successorHeader(foundBlock, foundBlock, req.skip):
-          break
-      else:
-        if not db.ancestorHeader(foundBlock, foundBlock, req.skip):
-          break
-      result.add foundBlock
+    # while uint64(result.len) < req.maxResults:
+    #   if not req.reverse:
+    #     if not db.successorHeader(foundBlock, foundBlock, req.skip):
+    #       break
+    #   else:
+    #     if not db.ancestorHeader(foundBlock, foundBlock, req.skip):
+    #       break
+    #   result.add foundBlock
 
-method handleAnnouncedTxs*(ctx: EthWireRef, peer: Peer, txs: openArray[Transaction])
-    {.gcsafe, raises: [CatchableError].} =
+method handleAnnouncedTxs*(ctx: EthWireRef, peer: Peer, txs: openArray[Transaction]) {.gcsafe, raises: [CatchableError].} =
   if ctx.enableTxPool != Enabled:
     when trMissingOrDisabledGossipOk:
       notEnabled("handleAnnouncedTxs")
@@ -467,8 +468,22 @@ method handleAnnouncedTxs*(ctx: EthWireRef, peer: Peer, txs: openArray[Transacti
   if txs.len == 0:
     return
 
-  debug "received new transactions",
-    number = txs.len
+  info "received new transactions", number = txs.len
+
+  try:
+    let comm = CommonRef.new(ctx.db.db, pruneTrie=true, Bsc, networkParams(Bsc))
+    let chain = comm.newChain()
+    let header = chain.currentBlock()
+    var vmState = BaseVMState.new(header, comm)
+    for tx in txs:
+      var txItem = TxItemRef.new(tx, tx.itemID, txItemPending, "").get()
+      var res = vmState.processTransaction(tx, txItem.sender, header)
+      if res.isOk:
+        info "handleAnnouncedTxs",  itemId = tx.itemID, gas=res.get()
+      else:
+        info "handleAnnouncedTxs", err=res.error()
+  except:
+    echo getCurrentExceptionMsg()
 
   if ctx.lastCleanup - getTime() > POOLED_STORAGE_TIME_LIMIT:
     ctx.cleanupKnownByPeer()
@@ -533,12 +548,22 @@ method handleAnnouncedTxsHashes*(ctx: EthWireRef, peer: Peer, txHashes: openArra
 
 method handleNewBlock*(ctx: EthWireRef, peer: Peer, blk: EthBlock, totalDifficulty: DifficultyInt)
     {.gcsafe, raises: [CatchableError].} =
-  if ctx.chain.com.forkGTE(MergeFork):
-    debug "Dropping peer for sending NewBlock after merge (EIP-3675)",
-      peer, blockNumber=blk.header.blockNumber,
-      blockHash=blk.header.blockHash, totalDifficulty
-    asyncSpawn banPeer(ctx.peerPool, peer, PEER_LONG_BANTIME)
-    return
+  info "handleNewBlock", peer=peer, blk=blk, totalDifficulty=totalDifficulty
+
+  # if ctx.chain.com.forkGTE(MergeFork):
+  #   debug "Dropping peer for sending NewBlock after merge (EIP-3675)",
+  #     peer, blockNumber=blk.header.blockNumber,
+  #     blockHash=blk.header.blockHash, totalDifficulty
+  #   asyncSpawn banPeer(ctx.peerPool, peer, PEER_LONG_BANTIME)
+  #   return
+
+  try:
+    let res = ctx.chain.persistBlocks([blk.header], [BlockBody(transactions: blk.txs, uncles: blk.uncles)])
+    if res == ValidationResult.Error:
+      error "handleNewBlock: persistBlocks error"
+      return
+  except:
+    echo getCurrentExceptionMsg()
 
   if not ctx.newBlockHandler.handler.isNil:
     ctx.newBlockHandler.handler(
@@ -554,12 +579,14 @@ method handleNewBlockHashes*(ctx: EthWireRef, peer: Peer, hashes: openArray[NewB
     asyncSpawn banPeer(ctx.peerPool, peer, PEER_LONG_BANTIME)
     return
 
+  # try:
+  #   var hashKey = canonicalHeadHashKey()
+  #   ctx.db.db.put(hashKey.toOpenArray, rlp.encode hashes[0].number)
+  # except:
+  #   echo getCurrentExceptionMsg()
+
   if not ctx.newBlockHashesHandler.handler.isNil:
-    ctx.newBlockHashesHandler.handler(
-      ctx.newBlockHashesHandler.arg,
-      peer,
-      hashes
-    )
+    ctx.newBlockHashesHandler.handler(ctx.newBlockHashesHandler.arg,peer,hashes)
 
 when defined(legacy_eth66_enabled):
   method getStorageNodes*(ctx: EthWireRef, hashes: openArray[Hash256]): seq[Blob] {.gcsafe.} =

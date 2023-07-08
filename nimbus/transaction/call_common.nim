@@ -95,9 +95,9 @@ func intrinsicGas*(call: CallParams, vmState: BaseVMState): GasInt {.inline.} =
       gas += account.storageKeys.len * ACCESS_LIST_STORAGE_KEY_COST
 
   # EIP-4844
-  if fork >= FkCancun:
-    gas += calcDataFee(call.versionedHashes.len,
-      vmState.parent.excessDataGas).GasInt
+  # if fork >= FkCancun:
+  #   gas += calcDataFee(call.versionedHashes.len,
+  #     vmState.parent.excessDataGas).GasInt
 
   return gas
 

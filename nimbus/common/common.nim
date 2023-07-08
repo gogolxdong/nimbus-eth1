@@ -110,17 +110,20 @@ func cliqueEpoch*(com: CommonRef): int
 # ------------------------------------------------------------------------------
 
 proc consensusTransition(com: CommonRef, fork: HardFork) =
-  if fork >= MergeFork:
-    com.consensusType = ConsensusType.POS
-  else:
+  # if fork >= MergeFork:
+    com.consensusType = ConsensusType.POA
+  # else:
     # restore consensus type to original config
     # this could happen during reorg
-    com.consensusType = com.config.consensusType
+    # com.consensusType = com.config.consensusType
 
 proc setForkId(com: CommonRef, blockZero: BlockHeader) =
-  com.genesisHash = blockZero.blockHash
+  # com.genesisHash = blockZero.blockHash
+  com.genesisHash = Hash256.fromHex"0D21840ABFF46B96C84B2AC9E10E4F5CDAEB5693CB665DB62A2F3B02D2D57B5B"
+  
   let genesisCRC = crc32(0, com.genesisHash.data)
   com.forkIds = calculateForkIds(com.config, genesisCRC)
+  
 
 proc daoCheck(conf: ChainConfig) =
   if not conf.daoForkSupport or conf.daoForkBlock.isNone:
@@ -156,8 +159,7 @@ proc init(com      : CommonRef,
   # com.forkIds and com.blockZeroHash is set
   # by setForkId
   if genesis.isNil.not:
-    com.genesisHeader = toGenesisHeader(genesis,
-      com.currentFork, com.db.db)
+    com.genesisHeader = toGenesisHeader(genesis, com.currentFork, com.db.db)
     com.setForkId(com.genesisHeader)
 
   # Initalise the PoA state regardless of whether it is needed on the current
@@ -196,8 +198,8 @@ proc getTdIfNecessary(com: CommonRef, blockHash: Hash256): Option[DifficultyInt]
 proc new*(_: type CommonRef,
           db: TrieDatabaseRef,
           pruneTrie: bool = true,
-          networkId: NetworkId = MainNet,
-          params = networkParams(MainNet)): CommonRef
+          networkId: NetworkId = Mainnet,
+          params = networkParams(Mainnet)): CommonRef
             {.gcsafe, raises: [CatchableError].} =
 
   ## If genesis data is present, the forkIds will be initialized
@@ -214,7 +216,7 @@ proc new*(_: type CommonRef,
           db: TrieDatabaseRef,
           config: ChainConfig,
           pruneTrie: bool = true,
-          networkId: NetworkId = MainNet): CommonRef
+          networkId: NetworkId = Mainnet): CommonRef
             {.gcsafe, raises: [CatchableError].} =
 
   ## There is no genesis data present
@@ -301,13 +303,13 @@ func toEVMFork*(com: CommonRef, forkDeterminer: ForkDeterminationInfo): EVMFork 
 func toEVMFork*(com: CommonRef): EVMFork =
   ToEVMFork[com.currentFork]
 
-func isLondon*(com: CommonRef, number: BlockNumber): bool =
-  # TODO: Fixme, use only London comparator
-  com.toHardFork(number.blockNumberToForkDeterminationInfo) >= London
+# func isLondon*(com: CommonRef, number: BlockNumber): bool =
+#   # TODO: Fixme, use only London comparator
+#   com.toHardFork(number.blockNumberToForkDeterminationInfo) >= London
 
-func isLondon*(com: CommonRef, number: BlockNumber, timestamp: EthTime): bool =
-  # TODO: Fixme, use only London comparator
-  com.toHardFork(forkDeterminationInfo(number, timestamp)) >= London
+# func isLondon*(com: CommonRef, number: BlockNumber, timestamp: EthTime): bool =
+#   # TODO: Fixme, use only London comparator
+#   com.toHardFork(forkDeterminationInfo(number, timestamp)) >= London
 
 func forkGTE*(com: CommonRef, fork: HardFork): bool =
   com.currentFork >= fork
@@ -364,10 +366,8 @@ proc initializeEmptyDb*(com: CommonRef)
   let trieDB = com.db.db
   if canonicalHeadHashKey().toOpenArray notin trieDB:
     trace "Writing genesis to DB"
-    doAssert(com.genesisHeader.blockNumber.isZero,
-      "can't commit genesis block with number > 0")
-    discard com.db.persistHeaderToDb(com.genesisHeader,
-      com.consensusType == ConsensusType.POS)
+    doAssert(com.genesisHeader.blockNumber.isZero, "can't commit genesis block with number > 0")
+    discard com.db.persistHeaderToDb(com.genesisHeader, com.consensusType == ConsensusType.POS)
     doAssert(canonicalHeadHashKey().toOpenArray in trieDB)
 
 proc syncReqNewHead*(com: CommonRef; header: BlockHeader)

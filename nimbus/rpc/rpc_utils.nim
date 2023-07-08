@@ -177,10 +177,10 @@ proc populateBlockObject*(header: BlockHeader, chain: ChainDBRef, fullTx: bool, 
   result.gasLimit  = encodeQuantity(header.gasLimit.uint64)
   result.gasUsed   = encodeQuantity(header.gasUsed.uint64)
   result.timestamp = encodeQuantity(header.timestamp.toUnix.uint64)
-  result.baseFeePerGas = if header.fee.isSome:
-                           some(encodeQuantity(header.baseFee))
-                         else:
-                           none(HexQuantityStr)
+  # result.baseFeePerGas = if header.fee.isSome:
+  #                          some(encodeQuantity(header.baseFee))
+  #                        else:
+  #                          none(HexQuantityStr)
   if not isUncle:
     result.totalDifficulty = encodeQuantity(chain.getScore(blockHash))
     result.uncles = chain.getUncleHashes(header)

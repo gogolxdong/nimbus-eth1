@@ -99,7 +99,7 @@ proc accountNode(ctx: GraphqlContextRef, acc: Account, address: EthAddress, db: 
     db: db
   )
 
-proc txNode(ctx: GraphqlContextRef, tx: Transaction, index: int, blockNumber: BlockNumber, baseFee: Option[UInt256]): Node =
+proc txNode(ctx: GraphqlContextRef, tx: Transaction, index: int, blockNumber: BlockNumber, baseFee: Option[UInt256]=some 0.u256): Node =
   TxNode(
     kind: nkMap,
     typeName: ctx.ids[ethTransaction],
@@ -262,7 +262,7 @@ proc getTxs(ctx: GraphqlContextRef, header: BlockHeader): RespResult =
     var index = 0
     for n in getBlockTransactionData(ctx.chainDB, header.txRoot):
       let tx = decodeTx(n)
-      list.add txNode(ctx, tx, index, header.blockNumber, header.fee)
+      list.add txNode(ctx, tx, index, header.blockNumber)
       inc index
 
     index = 0
@@ -282,7 +282,7 @@ proc getTxAt(ctx: GraphqlContextRef, header: BlockHeader, index: int): RespResul
   try:
     var tx: Transaction
     if getTransaction(ctx.chainDB, header.txRoot, index, tx):
-      let txn = txNode(ctx, tx, index, header.blockNumber, header.fee)
+      let txn = txNode(ctx, tx, index, header.blockNumber)
 
       var i = 0
       var prevUsed = 0.GasInt
@@ -1007,10 +1007,10 @@ proc blockEstimateGas(ud: RootRef, params: Args, parent: Node): RespResult {.api
 
 proc blockBaseFeePerGas(ud: RootRef, params: Args, parent: Node): RespResult {.apiPragma.} =
   let h = HeaderNode(parent)
-  if h.header.fee.isSome:
-    bigIntNode(h.header.fee.get)
-  else:
-    ok(respNull())
+  # if h.header.fee.isSome:
+  #   bigIntNode(h.header.fee.get)
+  # else:
+  ok(respNull())
 
 const blockProcs = {
   "parent": blockParent,

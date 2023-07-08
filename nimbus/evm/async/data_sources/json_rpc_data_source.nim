@@ -106,10 +106,10 @@ func blockHeaderFromBlockObject(o: BlockObject): BlockHeader =
     extraData: distinctBase(o.extraData),
     #mixDigest: o.mixHash.toHash, # AARDVARK what's this?
     nonce: nonce,
-    fee: o.baseFeePerGas,
-    withdrawalsRoot: o.withdrawalsRoot.map(toHash),
-    dataGasUsed: fromQty(o.dataGasUsed),
-    excessDataGas: fromQty(o.excessDataGas)
+    # fee: o.baseFeePerGas,
+    # withdrawalsRoot: o.withdrawalsRoot.map(toHash),
+    # dataGasUsed: fromQty(o.dataGasUsed),
+    # excessDataGas: fromQty(o.excessDataGas)
   )
 
 proc fetchBlockHeaderWithHash*(rpcClient: RpcClient, h: Hash256): Future[BlockHeader] {.async.} =

@@ -173,7 +173,7 @@ proc reinit*(self:      BaseVMState; ## Object descriptor
     parent    = parent,
     timestamp = header.timestamp,
     gasLimit  = header.gasLimit,
-    fee       = header.fee,
+    fee       = some 0.u256,
     prevRandao= header.prevRandao,
     difficulty= header.difficulty,
     miner     = self.com.minerAddress(header))
@@ -186,10 +186,10 @@ proc reinit*(self:      BaseVMState; ## Object descriptor
   ## `header.parentHash`, is used to fetch the `parent` BlockHeader to be
   ## used in the `update()` variant, above.
   var parent: BlockHeader
-  if self.com.db.getBlockHeader(header.parentHash, parent):
-    return self.reinit(
-      parent    = parent,
-      header    = header)
+  # if self.com.db.getBlockHeader(header.parentHash, parent):
+  return self.reinit(
+    parent    = parent,
+    header    = header)
 
 proc init*(
       self:        BaseVMState;     ## Object descriptor
@@ -210,7 +210,7 @@ proc init*(
     parent      = parent,
     timestamp   = header.timestamp,
     gasLimit    = header.gasLimit,
-    fee         = header.fee,
+    fee         = some 0.u256,
     prevRandao  = header.prevRandao,
     difficulty  = header.difficulty,
     miner       = com.minerAddress(header),
@@ -261,13 +261,13 @@ proc init*(
   ## Variant of `new()` which does not throw an exception on a dangling
   ## `BlockHeader` parent hash reference.
   var parent: BlockHeader
-  if com.db.getBlockHeader(header.parentHash, parent):
-    vmState.init(
-      parent      = parent,
-      header      = header,
-      com         = com,
-      tracerFlags = tracerFlags)
-    return true
+  # if com.db.getBlockHeader(header.parentHash, parent):
+  vmState.init(
+    parent      = parent,
+    header      = header,
+    com         = com,
+    tracerFlags = tracerFlags)
+  return true
 
 proc statelessInit*(
     vmState:      BaseVMState;
@@ -284,7 +284,7 @@ proc statelessInit*(
     parent      = parent,
     timestamp   = header.timestamp,
     gasLimit    = header.gasLimit,
-    fee         = header.fee,
+    fee         = some 0.u256,
     prevRandao  = header.prevRandao,
     difficulty  = header.difficulty,
     miner       = com.minerAddress(header),

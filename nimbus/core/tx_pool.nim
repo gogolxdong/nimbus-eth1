@@ -770,8 +770,8 @@ proc `minTipPrice=`*(xp: TxPoolRef; val: GasPrice) =
     xp.pMinTipPrice = val
     xp.pDirtyBuckets = true
 
-proc `withdrawals=`*(xp: TxPoolRef, val: sink seq[Withdrawal]) =
-  xp.chain.withdrawals = system.move(val)
+# proc `withdrawals=`*(xp: TxPoolRef, val: sink seq[Withdrawal]) =
+#   xp.chain.withdrawals = system.move(val)
 
 # ------------------------------------------------------------------------------
 # Public functions, per-tx-item operations

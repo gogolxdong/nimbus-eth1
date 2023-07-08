@@ -56,14 +56,12 @@ proc persistBlocksImpl(c: ChainRef; headers: openArray[BlockHeader];
   # Note that `0 < headers.len`, assured when called from `persistBlocks()`
   let vmState = BaseVMState()
   if not vmState.init(headers[0], c.com):
-    debug "Cannot initialise VmState",
+    info "Cannot initialise VmState",
       fromBlock = headers[0].blockNumber,
       toBlock = headers[^1].blockNumber
     return ValidationResult.Error
 
-  trace "Persisting blocks",
-    fromBlock = headers[0].blockNumber,
-    toBlock = headers[^1].blockNumber
+  info "Persisting blocks", fromBlock = headers[0].blockNumber, toBlock = headers[^1].blockNumber
 
   for i in 0 ..< headers.len:
     let
@@ -72,9 +70,7 @@ proc persistBlocksImpl(c: ChainRef; headers: openArray[BlockHeader];
     c.com.hardForkTransition(header)
 
     if not vmState.reinit(header):
-      debug "Cannot update VmState",
-        blockNumber = header.blockNumber,
-        item = i
+      error "Cannot update VmState", blockNumber = header.blockNumber, item = i
       return ValidationResult.Error
 
     let
@@ -101,7 +97,7 @@ proc persistBlocksImpl(c: ChainRef; headers: openArray[BlockHeader];
           # mark it off so it would not auto-restore previous state
           c.clique.cliqueDispose(cliqueState)
         else:
-          debug "PoA header verification failed",
+          info "PoA header verification failed",
             blockNumber = header.blockNumber,
             msg = $rc.error
           return ValidationResult.Error
@@ -111,7 +107,7 @@ proc persistBlocksImpl(c: ChainRef; headers: openArray[BlockHeader];
           body,
           checkSealOK = false) # TODO: how to checkseal from here
         if res.isErr:
-          debug "block validation error",
+          info "block validation error",
             msg = res.error
           return ValidationResult.Error
 
@@ -128,9 +124,6 @@ proc persistBlocksImpl(c: ChainRef; headers: openArray[BlockHeader];
     if NoSaveWithdrawals notin flags and body.withdrawals.isSome:
       discard c.db.persistWithdrawals(body.withdrawals.get)
 
-    # update currentBlock *after* we persist it
-    # so the rpc return consistent result
-    # between eth_blockNumber and eth_syncing
     c.com.syncCurrent = header.blockNumber
 
   transaction.commit()
@@ -177,13 +170,12 @@ proc setCanonical*(c: ChainRef, blockHash: Hash256): ValidationResult
 proc persistBlocks*(c: ChainRef; headers: openArray[BlockHeader];
                       bodies: openArray[BlockBody]): ValidationResult
                         {.gcsafe, raises: [CatchableError].} =
-  # Run the VM here
   if headers.len != bodies.len:
-    debug "Number of headers not matching number of bodies"
+    info "Number of headers not matching number of bodies"
     return ValidationResult.Error
 
   if headers.len == 0:
-    debug "Nothing to do"
+    info "Nothing to do"
     return ValidationResult.OK
 
   c.persistBlocksImpl(headers,bodies)

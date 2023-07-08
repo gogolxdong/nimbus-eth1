@@ -81,7 +81,7 @@ proc toBlockHeader(bc: eth_api.BlockObject): common.BlockHeader =
     gasLimit   : hexToInt(string bc.gasLimit, GasInt),
     gasUsed    : hexToInt(string bc.gasUsed, GasInt),
     timestamp  : initTime(hexToInt(string bc.timestamp, int64), 0),
-    fee        : toBaseFeePerGas(bc.baseFeePerGas)
+    # fee        : toBaseFeePerGas(bc.baseFeePerGas)
   )
 
 proc toTransactions(txs: openArray[JsonNode]): seq[Transaction] =

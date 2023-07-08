@@ -44,16 +44,16 @@ proc debug*(h: BlockHeader): string =
   result.add "extraData      : " & $h.extraData   & "\n"
   result.add "mixDigest      : " & $h.mixDigest   & "\n"
   result.add "nonce          : " & $h.nonce       & "\n"
-  result.add "fee.isSome     : " & $h.fee.isSome  & "\n"
-  if h.fee.isSome:
-    result.add "fee            : " & $h.fee.get()   & "\n"
-  if h.withdrawalsRoot.isSome:
-    result.add "withdrawalsRoot: " & $h.withdrawalsRoot.get() & "\n"
-  if h.dataGasUsed.isSome:
-    result.add "dataGasUsed    : " & $h.dataGasUsed.get() & "\n"
-  if h.excessDataGas.isSome:
-    result.add "excessDataGas  : " & $h.excessDataGas.get() & "\n"
-  result.add "blockHash      : " & $blockHash(h) & "\n"
+  # result.add "fee.isSome     : " & $h.fee.isSome  & "\n"
+  # if h.fee.isSome:
+  #   result.add "fee            : " & $h.fee.get()   & "\n"
+  # if h.withdrawalsRoot.isSome:
+  #   result.add "withdrawalsRoot: " & $h.withdrawalsRoot.get() & "\n"
+  # if h.dataGasUsed.isSome:
+  #   result.add "dataGasUsed    : " & $h.dataGasUsed.get() & "\n"
+  # if h.excessDataGas.isSome:
+  #   result.add "excessDataGas  : " & $h.excessDataGas.get() & "\n"
+  # result.add "blockHash      : " & $blockHash(h) & "\n"
 
 proc dumpAccount(stateDB: AccountsCache, address: EthAddress): JsonNode =
   var storage = newJObject()

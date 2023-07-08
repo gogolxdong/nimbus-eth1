@@ -95,10 +95,8 @@ proc gasLimitsGet*(com: CommonRef; parent: BlockHeader; parentLimit: GasInt;
   ## Calculate gas limits for the next block header.
   result.gasLimit = parentLimit
 
-  if com.isLondon(parent.blockNumber+1):
-    result.setPostLondonLimits
-  else:
-    result.setPreLondonLimits
+
+  result.setPreLondonLimits
 
   # VM/exec low/high water marks, optionally provided for packer
   result.lwmLimit = max(
@@ -108,18 +106,18 @@ proc gasLimitsGet*(com: CommonRef; parent: BlockHeader; parentLimit: GasInt;
     result.trgLimit, (result.maxLimit * pc.hwmMax + 50) div 100)
 
   # override trgLimit, see https://github.com/status-im/nimbus-eth1/issues/1032
-  if com.isLondon(parent.blockNumber+1):
-    var parentGasLimit = parent.gasLimit
-    if not com.isLondon(parent.blockNumber):
-      # Bump by 2x
-      parentGasLimit = parent.gasLimit * EIP1559_ELASTICITY_MULTIPLIER
-    result.trgLimit = calcGasLimit1559(parentGasLimit, desiredLimit = pc.gasCeil)
-  else:
-    result.trgLimit = computeGasLimit(
-      parent.gasUsed,
-      parent.gasLimit,
-      gasFloor = pc.gasFloor,
-      gasCeil = pc.gasCeil)
+  # if com.isLondon(parent.blockNumber+1):
+  #   var parentGasLimit = parent.gasLimit
+  #   if not com.isLondon(parent.blockNumber):
+  #     # Bump by 2x
+  #     parentGasLimit = parent.gasLimit * EIP1559_ELASTICITY_MULTIPLIER
+  #   result.trgLimit = calcGasLimit1559(parentGasLimit, desiredLimit = pc.gasCeil)
+  # else:
+  result.trgLimit = computeGasLimit(
+    parent.gasUsed,
+    parent.gasLimit,
+    gasFloor = pc.gasFloor,
+    gasCeil = pc.gasCeil)
 
 proc gasLimitsGet*(com: CommonRef; parent: BlockHeader;
                    pc: TxChainGasLimitsPc): TxChainGasLimits =

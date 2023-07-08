@@ -107,8 +107,8 @@ proc parseBlockHeader*(n: JsonNode): BlockHeader =
   n.fromJson "extraData", result.extraData
   n.fromJson "mixHash", result.mixDigest
   n.fromJson "nonce", result.nonce
-  n.fromJson "baseFeePerGas", result.fee
-  n.fromJson "withdrawalsRoot", result.withdrawalsRoot
+  # n.fromJson "baseFeePerGas", result.fee
+  # n.fromJson "withdrawalsRoot", result.withdrawalsRoot
 
   if result.baseFee == 0.u256:
     # probably geth bug

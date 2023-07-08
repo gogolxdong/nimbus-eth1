@@ -98,7 +98,7 @@ proc envToHeader(env: EnvStruct): BlockHeader =
     timestamp  : env.currentTimestamp,
     stateRoot  : emptyRlpHash,
     fee        : env.currentBaseFee,
-    withdrawalsRoot: env.withdrawals.calcWithdrawalsRoot()
+    # withdrawalsRoot: env.withdrawals.calcWithdrawalsRoot()
   )
 
 proc postState(db: AccountsCache, alloc: var GenesisAlloc) =
@@ -286,12 +286,12 @@ proc exec(ctx: var TransContext,
     currentDifficulty: ctx.env.currentDifficulty,
     gasUsed     : vmState.cumulativeGasUsed,
     currentBaseFee: ctx.env.currentBaseFee,
-    withdrawalsRoot: header.withdrawalsRoot
+    # withdrawalsRoot: header.withdrawalsRoot
   )
 
-  if fork >= FkCancun:
-    result.result.dataGasUsed = some dataGasUsed
-    result.result.excessDataGas = some calcExcessDataGas(vmState.parent)
+  # if fork >= FkCancun:
+  #   result.result.dataGasUsed = some dataGasUsed
+  #   result.result.excessDataGas = some calcExcessDataGas(vmState.parent)
 
 template wrapException(body: untyped) =
   when wrapExceptionEnabled:
@@ -412,18 +412,18 @@ proc transitionAction*(ctx: var TransContext, conf: T8NConf) =
       ommersHash: uncleHash,
       blockNumber: ctx.env.currentNumber - 1.toBlockNumber,
       dataGasUsed: ctx.env.parentDataGasUsed,
-      excessDataGas: ctx.env.parentExcessDataGas
+      # excessDataGas: ctx.env.parentExcessDataGas
     )
 
     # Sanity check, to not `panic` in state_transition
-    if com.isLondon(ctx.env.currentNumber):
-      if ctx.env.currentBaseFee.isSome:
-        # Already set, currentBaseFee has precedent over parentBaseFee.
-        discard
-      elif ctx.env.parentBaseFee.isSome:
-        ctx.env.currentBaseFee = some(calcBaseFee(ctx.env))
-      else:
-        raise newError(ErrorConfig, "EIP-1559 config but missing 'currentBaseFee' in env section")
+    # if com.isLondon(ctx.env.currentNumber):
+    #   if ctx.env.currentBaseFee.isSome:
+    #     # Already set, currentBaseFee has precedent over parentBaseFee.
+    #     discard
+    #   elif ctx.env.parentBaseFee.isSome:
+    #     ctx.env.currentBaseFee = some(calcBaseFee(ctx.env))
+    #   else:
+    #     raise newError(ErrorConfig, "EIP-1559 config but missing 'currentBaseFee' in env section")
 
     if com.isShanghaiOrLater(ctx.env.currentTimestamp) and ctx.env.withdrawals.isNone:
       raise newError(ErrorConfig, "Shanghai config but missing 'withdrawals' in env section")

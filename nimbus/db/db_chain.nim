@@ -277,11 +277,11 @@ proc getBlockBody*(db: ChainDBRef, header: BlockHeader, output: var BlockBody): 
     else:
       result = false
 
-  if header.withdrawalsRoot.isSome:
-    var withdrawals: seq[Withdrawal]
-    for encodedWd in db.getWithdrawalsData(header.withdrawalsRoot.get):
-      withdrawals.add(rlp.decode(encodedWd, Withdrawal))
-    output.withdrawals = some(withdrawals)
+  # if header.withdrawalsRoot.isSome:
+  #   var withdrawals: seq[Withdrawal]
+  #   for encodedWd in db.getWithdrawalsData(header.withdrawalsRoot.get):
+  #     withdrawals.add(rlp.decode(encodedWd, Withdrawal))
+  #   output.withdrawals = some(withdrawals)
 
 proc getBlockBody*(db: ChainDBRef, blockHash: Hash256, output: var BlockBody): bool =
   var header: BlockHeader
@@ -441,8 +441,7 @@ proc persistHeaderToDb*(
   let isStartOfHistory = header.parentHash == startOfHistory
   let headerHash = header.blockHash
   if not isStartOfHistory and not db.headerExists(header.parentHash):
-    raise newException(ParentNotFound, "Cannot persist block header " &
-        $headerHash & " with unknown parent " & $header.parentHash)
+    raise newException(ParentNotFound, "Cannot persist block header " & $headerHash & " with unknown parent " & $header.parentHash)
   db.db.put(genericHashKey(headerHash).toOpenArray, rlp.encode(header))
 
   let score = if isStartOfHistory: header.difficulty

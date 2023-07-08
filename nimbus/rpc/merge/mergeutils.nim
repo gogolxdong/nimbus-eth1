@@ -84,8 +84,8 @@ proc toBlockHeader*(payload: ExecutionPayloadV1 | ExecutionPayloadV2): EthBlockH
     extraData      : bytes payload.extraData,
     mixDigest      : payload.prevRandao.asEthHash, # EIP-4399 redefine `mixDigest` -> `prevRandao`
     nonce          : default(BlockNonce),
-    fee            : some payload.baseFeePerGas,
-    withdrawalsRoot: payload.maybeWithdrawals.map(calcWithdrawalsRoot) # EIP-4895
+    # fee            : some payload.baseFeePerGas,
+    # withdrawalsRoot: payload.maybeWithdrawals.map(calcWithdrawalsRoot) # EIP-4895
   )
 
 proc toWithdrawal*(w: WithdrawalV1): Withdrawal =

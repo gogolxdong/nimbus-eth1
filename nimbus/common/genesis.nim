@@ -83,10 +83,10 @@ proc toGenesisHeader*(
     ommersHash: EMPTY_UNCLE_HASH
   )
 
-  if g.baseFeePerGas.isSome:
-    result.baseFee = g.baseFeePerGas.get()
-  elif fork >= London:
-    result.baseFee = EIP1559_INITIAL_BASE_FEE.u256
+  # if g.baseFeePerGas.isSome:
+  #   result.baseFee = g.baseFeePerGas.get()
+  # elif fork >= London:
+  #   result.baseFee = EIP1559_INITIAL_BASE_FEE.u256
 
   if g.gasLimit.isZero:
     result.gasLimit = GENESIS_GAS_LIMIT
@@ -94,8 +94,8 @@ proc toGenesisHeader*(
   if g.difficulty.isZero and fork <= London:
     result.difficulty = GENESIS_DIFFICULTY
 
-  if fork >= Shanghai:
-    result.withdrawalsRoot = some(EMPTY_ROOT_HASH)
+  # if fork >= Shanghai:
+  #   result.withdrawalsRoot = some(EMPTY_ROOT_HASH)
 
 proc toGenesisHeader*(
     genesis: Genesis;

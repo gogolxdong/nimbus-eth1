@@ -97,7 +97,7 @@ proc customizePayload*(basePayload: ExecutableData, customData: CustomPayload): 
     extraData:     basePayload.extraData,
     mixDigest:     basePayload.prevRandao,
     nonce:         default(BlockNonce),
-    fee:           some(basePayload.baseFeePerGas)
+    # fee:           some(basePayload.baseFeePerGas)
   )
 
   # Overwrite custom information

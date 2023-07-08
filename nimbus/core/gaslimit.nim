@@ -58,20 +58,17 @@ proc calcEip1599BaseFee*(com: CommonRef; parent: BlockHeader): UInt256 =
 
   # If the current block is the first EIP-1559 block, return the
   # initial base fee.
-  if com.isLondon(parent.blockNumber):
-    eip1559.calcEip1599BaseFee(parent.gasLimit, parent.gasUsed, parent.baseFee)
-  else:
-    EIP1559_INITIAL_BASE_FEE
+  # if com.isLondon(parent.blockNumber):
+  #   eip1559.calcEip1599BaseFee(parent.gasLimit, parent.gasUsed, parent.baseFee)
+  # else:
+  EIP1559_INITIAL_BASE_FEE
 
 # consensus/misc/eip1559.go(32): func VerifyEip1559Header(config [..]
 proc verifyEip1559Header(com: CommonRef;
                          parent, header: BlockHeader): Result[void, string]
                         {.raises: [].} =
   ## Verify that the gas limit remains within allowed bounds
-  let limit = if com.isLondon(parent.blockNumber):
-                parent.gasLimit
-              else:
-                parent.gasLimit * EIP1559_ELASTICITY_MULTIPLIER
+  let limit = parent.gasLimit * EIP1559_ELASTICITY_MULTIPLIER
   let rc = header.validateGasLimit(limit)
   if rc.isErr:
     return rc
@@ -98,17 +95,17 @@ proc verifyEip1559Header(com: CommonRef;
 proc validateGasLimitOrBaseFee*(com: CommonRef;
                                 header, parent: BlockHeader): Result[void, string] =
 
-  if not com.isLondon(header.blockNumber):
-    # Verify BaseFee not present before EIP-1559 fork.
-    if not header.baseFee.isZero:
-      return err("invalid baseFee before London fork: have " & $header.baseFee & ", want <0>")
-    let rc = com.validateGasLimit(header)
-    if rc.isErr:
-      return rc
-  else:
-    let rc = com.verifyEip1559Header(parent = parent,
-                                     header = header)
-    if rc.isErr:
-      return rc
+  # if not com.isLondon(header.blockNumber):
+  #   # Verify BaseFee not present before EIP-1559 fork.
+  #   if not header.baseFee.isZero:
+  #     return err("invalid baseFee before London fork: have " & $header.baseFee & ", want <0>")
+  #   let rc = com.validateGasLimit(header)
+  #   if rc.isErr:
+  #     return rc
+  # else:
+  let rc = com.verifyEip1559Header(parent = parent,
+                                    header = header)
+  if rc.isErr:
+    return rc
 
   return ok()

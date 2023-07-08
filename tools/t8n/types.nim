@@ -92,10 +92,10 @@ type
     rejected*: seq[RejectedTx]
     currentDifficulty*: Option[DifficultyInt]
     gasUsed*: GasInt
-    currentBaseFee*: Option[UInt256]
-    withdrawalsRoot*: Option[Hash256]
-    dataGasUsed*: Option[uint64]
-    excessDataGas*: Option[uint64]
+    # currentBaseFee*: Option[UInt256]
+    # withdrawalsRoot*: Option[Hash256]
+    # dataGasUsed*: Option[uint64]
+    # excessDataGas*: Option[uint64]
 
 const
   ErrorEVM*              = 2.T8NExitCode

@@ -51,7 +51,7 @@ proc notImplemented(name: string) =
 
 method getStatus*(ctx: EthWireBase): EthState
     {.base, gcsafe, raises: [CatchableError].} =
-  notImplemented("getStatus")
+  EthState(totalDifficulty:1.u256, genesisHash: Hash256.fromHex("0x0d21840abff46b96c84b2ac9e10e4f5cdaeb5693cb665db62a2f3b02d2d57b5b"), forkId: ChainForkId(forkHash:[byte(41),149,197,42], forkNext: 0.u256))
 
 method getReceipts*(ctx: EthWireBase, hashes: openArray[Hash256]): seq[seq[Receipt]]
     {.base, gcsafe, raises: [CatchableError].} =

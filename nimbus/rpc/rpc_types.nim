@@ -71,7 +71,7 @@ type
     gasLimit*: HexQuantityStr       # the maximum gas allowed in this block.
     gasUsed*: HexQuantityStr        # the total used gas by all transactions in this block.
     timestamp*: HexQuantityStr      # the unix timestamp for when the block was collated.
-    baseFeePerGas*: Option[HexQuantityStr]
+    # baseFeePerGas*: Option[HexQuantityStr]
     transactions*: seq[JsonNode]    # list of transaction objects, or 32 Bytes transaction hashes depending on the last given parameter.
     uncles*: seq[Hash256]           # list of uncle hashes.
     withdrawals*: seq[WithdrawalObject] # list of validator withdrawals

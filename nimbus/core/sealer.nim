@@ -129,9 +129,7 @@ proc sealingLoop(engine: SealingEngineRef): Future[void] {.async.} =
       error "sealing engine generateBlock error", msg=blkRes.error
       break
 
-    let res = engine.chain.persistBlocks([blk.header], [
-      BlockBody(transactions: blk.txs, uncles: blk.uncles)
-    ])
+    let res = engine.chain.persistBlocks([blk.header], [BlockBody(transactions: blk.txs, uncles: blk.uncles)])
 
     if res == ValidationResult.Error:
       error "sealing engine: persistBlocks error"
@@ -168,10 +166,10 @@ proc generateExecutionPayload*(engine: SealingEngineRef,
   pos.timestamp    = fromUnix(payloadAttrs.timestamp.unsafeQuantityToInt64)
   pos.feeRecipient = EthAddress payloadAttrs.suggestedFeeRecipient
 
-  when payloadAttrs is PayloadAttributesV2:
-    engine.txPool.withdrawals = payloadAttrs.withdrawals.toWithdrawals
-  else:
-    engine.txPool.withdrawals = @[]
+  # when payloadAttrs is PayloadAttributesV2:
+  #   engine.txPool.withdrawals = payloadAttrs.withdrawals.toWithdrawals
+  # else:
+  #   engine.txPool.withdrawals = @[]
 
   if headBlock.blockHash != engine.txPool.head.blockHash:
     # reorg
@@ -185,7 +183,7 @@ proc generateExecutionPayload*(engine: SealingEngineRef,
 
   # make sure both generated block header and payloadRes(ExecutionPayloadV2)
   # produce the same blockHash
-  blk.header.fee = some(blk.header.fee.get(UInt256.zero)) # force it with some(UInt256)
+  # blk.header.fee = some(blk.header.fee.get(UInt256.zero)) # force it with some(UInt256)
 
   let blockHash = rlpHash(blk.header)
   if blk.header.extraData.len > 32:
@@ -211,10 +209,10 @@ proc generateExecutionPayload*(engine: SealingEngineRef,
     gasUsed: Web3Quantity blk.header.gasUsed,
     timestamp: payloadAttrs.timestamp,
     extraData: web3types.DynamicBytes[0, 32] blk.header.extraData,
-    baseFeePerGas: blk.header.fee.get(UInt256.zero),
+    # baseFeePerGas: blk.header.fee.get(UInt256.zero),
     blockHash: Web3BlockHash blockHash.data,
     transactions: transactions,
-    withdrawals: withdrawals
+    # withdrawals: withdrawals
   ))
 
 proc generateExecutionPayloadV1*(engine: SealingEngineRef,

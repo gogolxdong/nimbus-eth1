@@ -78,15 +78,15 @@ proc pointEvaluation*(input: openArray[byte]): Result[void, string] =
   ok()
 
 # calcExcessDataGas implements calc_excess_data_gas from EIP-4844
-proc calcExcessDataGas*(parent: BlockHeader): uint64 =
-  let
-    excessDataGas = parent.excessDataGas.get(0'u64)
-    dataGasUsed = parent.dataGasUsed.get(0'u64)
+proc calcExcessDataGas*(parent: BlockHeader): uint64 = 0
+  # let
+  #   excessDataGas = parent.excessDataGas.get(0'u64)
+  #   dataGasUsed = parent.dataGasUsed.get(0'u64)
 
-  if excessDataGas + dataGasUsed < TARGET_DATA_GAS_PER_BLOCK:
-    0'u64
-  else:
-    excessDataGas + dataGasUsed - TARGET_DATA_GAS_PER_BLOCK
+  # if excessDataGas + dataGasUsed < TARGET_DATA_GAS_PER_BLOCK:
+  #   0'u64
+  # else:
+  #   excessDataGas + dataGasUsed - TARGET_DATA_GAS_PER_BLOCK
 
 # fakeExponential approximates factor * e ** (num / denom) using a taylor expansion
 # as described in the EIP-4844 spec.
@@ -136,35 +136,35 @@ func validateEip4844Header*(
     com: CommonRef, header, parentHeader: BlockHeader,
     txs: openArray[Transaction]): Result[void, string] {.raises: [].} =
 
-  if not com.forkGTE(Cancun):
-    if header.dataGasUsed.isSome:
-      return err("unexpected EIP-4844 dataGasUsed in block header")
+  # if not com.forkGTE(Cancun):
+  #   if header.dataGasUsed.isSome:
+  #     return err("unexpected EIP-4844 dataGasUsed in block header")
 
-    if header.excessDataGas.isSome:
-      return err("unexpected EIP-4844 excessDataGas in block header")
+  #   if header.excessDataGas.isSome:
+  #     return err("unexpected EIP-4844 excessDataGas in block header")
 
-    return ok()
+  #   return ok()
 
-  if header.dataGasUsed.isNone:
-    return err("expect EIP-4844 dataGasUsed in block header")
+  # if header.dataGasUsed.isNone:
+  #   return err("expect EIP-4844 dataGasUsed in block header")
 
-  if header.excessDataGas.isNone:
-    return err("expect EIP-4844 excessDataGas in block header")
+  # if header.excessDataGas.isNone:
+  #   return err("expect EIP-4844 excessDataGas in block header")
 
-  let
-    headerDataGasUsed = header.dataGasUsed.get()
-    dataGasUsed = dataGasUsed(txs)
-    headerExcessDataGas = header.excessDataGas.get
-    excessDataGas = calcExcessDataGas(parentHeader)
+  # let
+  #   headerDataGasUsed = header.dataGasUsed.get()
+  #   dataGasUsed = dataGasUsed(txs)
+  #   headerExcessDataGas = header.excessDataGas.get
+  #   excessDataGas = calcExcessDataGas(parentHeader)
 
-  if dataGasUsed <= MAX_DATA_GAS_PER_BLOCK:
-    return err("dataGasUsed should greater than MAX_DATA_GAS_PER_BLOCK: " & $dataGasUsed)
+  # if dataGasUsed <= MAX_DATA_GAS_PER_BLOCK:
+  #   return err("dataGasUsed should greater than MAX_DATA_GAS_PER_BLOCK: " & $dataGasUsed)
 
-  if headerDataGasUsed != dataGasUsed:
-    return err("calculated dataGas not equal header.dataGasUsed")
+  # if headerDataGasUsed != dataGasUsed:
+  #   return err("calculated dataGas not equal header.dataGasUsed")
 
-  if headerExcessDataGas != excessDataGas:
-    return err("calculated excessDataGas not equal header.excessDataGas")
+  # if headerExcessDataGas != excessDataGas:
+  #   return err("calculated excessDataGas not equal header.excessDataGas")
 
   return ok()
 

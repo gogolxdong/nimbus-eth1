@@ -865,13 +865,13 @@ proc startSyncWithPeer(ctx: LegacySyncRef, peer: Peer) =
       ourTD  = db.getScore(header.blockHash)
       peerTD = peer.state(eth).bestDifficulty
 
-    if peerTD <= ourTD:
-      # do nothing if peer have same height
-      if peerTD < ourTD:
-        trace "Peer have lower TD, become recipient",
-          peer, ourTD, peerTD
-        asyncSpawn ctx.sendBlockOrHash(peer)
-      return
+    # if peerTD <= ourTD:
+    #   # do nothing if peer have same height
+    #   if peerTD < ourTD:
+    #     trace "Peer have lower TD, become recipient",
+    #       peer, ourTD, peerTD
+    #     asyncSpawn ctx.sendBlockOrHash(peer)
+    #   return
 
     ctx.busyPeers.incl(peer)
     let f = ctx.startSyncWithPeerImpl(peer)

@@ -1,11 +1,3 @@
-# Nimbus - Various ways of calling the EVM
-#
-# Copyright (c) 2018-2021 Status Research & Development GmbH
-# Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
-#  * MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
-# at your option. This file may not be copied, modified, or distributed except according to those terms.
-
 {.push raises: [].}
 
 import
@@ -32,7 +24,7 @@ type
     versionedHashes*: VersionedHashes
 
 proc toCallParams(vmState: BaseVMState, cd: RpcCallData,
-                  globalGasCap: GasInt, baseFee: Option[UInt256],
+                  globalGasCap: GasInt, baseFee: Option[UInt256] = some 0.u256,
                   forkOverride = none(EVMFork)): CallParams
     {.gcsafe, raises: [ValueError].} =
 
@@ -85,9 +77,9 @@ proc rpcCallEvm*(call: RpcCallData, header: BlockHeader, com: CommonRef): CallRe
     parentHash: header.blockHash,
     timestamp:  getTime().utc.toTime,
     gasLimit:   0.GasInt,          ## ???
-    fee:        UInt256.none())    ## ???
+    )    ## ???
   let vmState = BaseVMState.new(topHeader, com)
-  let params  = toCallParams(vmState, call, globalGasCap, header.fee)
+  let params  = toCallParams(vmState, call, globalGasCap)
 
   var dbTx = com.db.db.beginTransaction()
   defer: dbTx.dispose() # always dispose state changes
@@ -101,11 +93,11 @@ proc rpcEstimateGas*(cd: RpcCallData, header: BlockHeader, com: CommonRef, gasCa
     parentHash: header.blockHash,
     timestamp:  getTime().utc.toTime,
     gasLimit:   0.GasInt,          ## ???
-    fee:        UInt256.none())    ## ???
+    )    ## ???
   let vmState = BaseVMState.new(topHeader, com)
   let fork    = vmState.determineFork
   let txGas   = gasFees[fork][GasTransaction] # txGas always 21000, use constants?
-  var params  = toCallParams(vmState, cd, gasCap, header.fee)
+  var params  = toCallParams(vmState, cd, gasCap)
 
   var
     lo : GasInt = txGas - 1

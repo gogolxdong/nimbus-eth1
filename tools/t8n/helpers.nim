@@ -436,11 +436,11 @@ proc `@@`*(x: ExecutionResult): JsonNode =
   }
   if x.rejected.len > 0:
     result["rejected"] = @@(x.rejected)
-  if x.currentBaseFee.isSome:
-    result["currentBaseFee"] = @@(x.currentBaseFee)
-  if x.withdrawalsRoot.isSome:
-    result["withdrawalsRoot"] = @@(x.withdrawalsRoot)
-  if x.dataGasUsed.isSome:
-    result["dataGasUsed"] = @@(x.dataGasUsed)
-  if x.excessDataGas.isSome:
-    result["excessDataGas"] = @@(x.excessDataGas)
+  # if x.currentBaseFee.isSome:
+  #   result["currentBaseFee"] = @@(x.currentBaseFee)
+  # if x.withdrawalsRoot.isSome:
+  #   result["withdrawalsRoot"] = @@(x.withdrawalsRoot)
+  # if x.dataGasUsed.isSome:
+  #   result["dataGasUsed"] = @@(x.dataGasUsed)
+  # if x.excessDataGas.isSome:
+  #   result["excessDataGas"] = @@(x.excessDataGas)

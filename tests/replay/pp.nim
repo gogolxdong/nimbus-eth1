@@ -54,10 +54,10 @@ proc pp*(h: BlockHeader; sep = " "): string =
     &"txRoot={h.txRoot.pp}{sep}" &
     &"receiptRoot={h.receiptRoot.pp}{sep}" &
     &"stateRoot={h.stateRoot.pp}{sep}" &
-    &"baseFee={h.baseFee}{sep}" &
-    &"withdrawalsRoot={h.withdrawalsRoot.get(EMPTY_ROOT_HASH)}{sep}" &
-    &"dataGasUsed={h.dataGasUsed.get(0'u64)}" &
-    &"excessDataGas={h.excessDataGas.get(0'u64)}"
+    # &"baseFee={h.baseFee}{sep}" &
+    # &"withdrawalsRoot={h.withdrawalsRoot.get(EMPTY_ROOT_HASH)}{sep}" &
+    # &"dataGasUsed={h.dataGasUsed.get(0'u64)}" &
+    # &"excessDataGas={h.excessDataGas.get(0'u64)}"
 
 proc pp*(g: Genesis; sep = " "): string =
   "" &
@@ -70,7 +70,7 @@ proc pp*(g: Genesis; sep = " "): string =
     &"coinbase={g.coinbase.pp}{sep}" &
     &"alloc=<{g.alloc.len} accounts>{sep}" &
     &"number={g.number}{sep}" &
-    &"gasUser={g.gasUser}{sep}" &
+    &"gasUsed={g.gasUsed}{sep}" &
     &"parentHash={g.parentHash.pp}{sep}" &
     &"baseFeePerGas={g.baseFeePerGas}"
 
