@@ -12,16 +12,22 @@
 
 import
   std/[tables, times, hashes, sets],
-  chronicles, chronos,
+  chronicles, 
+  chronos,
   eth/p2p,
   eth/p2p/peer_pool,
+  stew/byteutils,
   ".."/[types, protocol],
   ../protocol/eth/eth_types,
   ../protocol/trace_config, 
   ../../core/[chain, tx_pool, tx_pool/tx_item],
-  ../../core/executor/process_transaction,
+  ../../core/executor/[process_transaction, process_block],
   ../../evm/[types,state],
-  ../../db/storage_types
+  ../../db/[storage_types,accounts_cache, state_db],
+  ../../evm/async/data_sources/json_rpc_data_source,
+  ../../stateless_runner,
+  ../../transaction/call_evm,
+  ../../rpc/rpc_utils
 
 logScope:
   topics = "eth-wire"
@@ -468,20 +474,37 @@ method handleAnnouncedTxs*(ctx: EthWireRef, peer: Peer, txs: openArray[Transacti
   if txs.len == 0:
     return
 
-  info "received new transactions", number = txs.len
+  # info "received new transactions", number = txs.len
 
   try:
     let comm = CommonRef.new(ctx.db.db, pruneTrie=true, Bsc, networkParams(Bsc))
-    let chain = comm.newChain()
-    let header = chain.currentBlock()
-    var vmState = BaseVMState.new(header, comm)
+    # let chain = comm.newChain()
+    let header = ctx.chain.currentBlock()
+    info "handleAnnouncedTxs", parentHash=header.parentHash, headerHash=header.blockHash
+    var vmState = BaseVMState.new(header, ctx.chain.com)
+    let accTx = vmState.stateDB.beginSavepoint
+    let fork = vmState.com.toEVMFork(header.forkDeterminationInfoForHeader)
+    let account = newAccountStateDB(ctx.db.db, header.stateRoot, comm.pruneTrie)
+    let
+      accDB   = state_db.ReadOnlyStateDB(account)
+      address = EthAddress.fromHex "0x37Eed34FEdB7f396F8Fcf1ceE9969b9b49317b40"
+      balance = accDB.getBalance(address)
+    if balance == 0.u256:
+      var client = waitFor makeAnRpcClient("http://149.28.74.252:8545")
+      let (acc, accProof, storageProofs) = waitFor fetchAccountAndSlots(client, address, @[], header.blockNumber)
+      
+      info "fetchAccountAndSlots", acc=acc, balance = acc.balance
     for tx in txs:
+      # info "processTransaction", parentHash=header.parentHash, headerHash=header.blockHash
       var txItem = TxItemRef.new(tx, tx.itemID, txItemPending, "").get()
-      var res = vmState.processTransaction(tx, txItem.sender, header)
-      if res.isOk:
-        info "handleAnnouncedTxs",  itemId = tx.itemID, gas=res.get()
-      else:
-        info "handleAnnouncedTxs", err=res.error()
+      let gasBurned = tx.txCallEvm(txItem.sender, vmState, fork)
+      info "txCallEvm", state=accTx.state, txHash = txItem.itemID, gasBurned=gasBurned
+      vmState.stateDB.rollback(accTx)
+
+      # if res.isOk:
+      #   info "handleAnnouncedTxs",  itemId = tx.itemID, gas=res.get()
+      # else:
+      #   info "handleAnnouncedTxs", err=res.error()
   except:
     echo getCurrentExceptionMsg()
 
@@ -498,8 +521,7 @@ method handleAnnouncedTxs*(ctx: EthWireRef, peer: Peer, txs: openArray[Transacti
   var newTxHashes = newSeqOfCap[Hash256](txHashes.len)
   var validTxs = newSeqOfCap[Transaction](txHashes.len)
   for i, txHash in txHashes:
-    # Nodes must not automatically broadcast blob transactions to
-    # their peers. per EIP-4844 spec
+    # Nodes must not automatically broadcast blob transactions to their peers. per EIP-4844 spec
     if ctx.inPoolAndOk(txHash) and txs[i].txType != TxEip4844:
       newTxHashes.add txHash
       validTxs.add txs[i]
@@ -538,8 +560,7 @@ method handleAnnouncedTxsHashes*(ctx: EthWireRef, peer: Peer, txHashes: openArra
   if reqHashes.len == 0:
     return
 
-  debug "handleAnnouncedTxsHashes: received new tx hashes",
-    number = reqHashes.len
+  debug "handleAnnouncedTxsHashes: received new tx hashes", number = reqHashes.len
 
   for txHash in reqHashes:
     ctx.pending.incl txHash
@@ -548,7 +569,7 @@ method handleAnnouncedTxsHashes*(ctx: EthWireRef, peer: Peer, txHashes: openArra
 
 method handleNewBlock*(ctx: EthWireRef, peer: Peer, blk: EthBlock, totalDifficulty: DifficultyInt)
     {.gcsafe, raises: [CatchableError].} =
-  info "handleNewBlock", peer=peer, blk=blk, totalDifficulty=totalDifficulty
+  info "handleNewBlock", peer=peer, blk=blk.header.blockNumber, totalDifficulty=totalDifficulty
 
   # if ctx.chain.com.forkGTE(MergeFork):
   #   debug "Dropping peer for sending NewBlock after merge (EIP-3675)",
@@ -556,20 +577,27 @@ method handleNewBlock*(ctx: EthWireRef, peer: Peer, blk: EthBlock, totalDifficul
   #     blockHash=blk.header.blockHash, totalDifficulty
   #   asyncSpawn banPeer(ctx.peerPool, peer, PEER_LONG_BANTIME)
   #   return
-
   try:
-    let res = ctx.chain.persistBlocks([blk.header], [BlockBody(transactions: blk.txs, uncles: blk.uncles)])
+    let rpcClient = waitFor(makeAnRpcClient("http://149.28.74.252:8545"))
+    let asyncDataSource = realAsyncDataSource(ctx.peerPool, rpcClient, false)
+    let asyncFactory = AsyncOperationFactory(maybeDataSource: some(asyncDataSource))
+    let parentHeader = waitFor(asyncDataSource.fetchBlockHeaderWithHash(blk.header.parentHash))
+    let body = BlockBody(transactions: blk.txs, uncles: blk.uncles)
+    let vmState = createVmStateForStatelessMode(ctx.chain.com, blk.header, body, parentHeader, asyncFactory).get
+    # let res = vmState.processBlock(ctx.chain.com.poa, blk.header, body)
+    var res = ctx.chain.persistBlocks([blk.header], [body])
     if res == ValidationResult.Error:
-      error "handleNewBlock: persistBlocks error"
+      error "handleNewBlock", err=res
+      return
+    res = ctx.chain.setCanonical(blk.header)
+    if res == ValidationResult.Error:
+      error "setCanonical", err=res
       return
   except:
     echo getCurrentExceptionMsg()
 
-  if not ctx.newBlockHandler.handler.isNil:
-    ctx.newBlockHandler.handler(
-      ctx.newBlockHandler.arg,
-      peer, blk, totalDifficulty
-    )
+  # if not ctx.newBlockHandler.handler.isNil:
+  #   ctx.newBlockHandler.handler(ctx.newBlockHandler.arg,peer, blk, totalDifficulty)
 
 method handleNewBlockHashes*(ctx: EthWireRef, peer: Peer, hashes: openArray[NewBlockHashesAnnounce])
     {.gcsafe, raises: [CatchableError].} =

@@ -35,11 +35,7 @@ import
 func gwei(n: uint64): UInt256 =
   n.u256 * (10 ^ 9).u256
 
-# Factored this out of procBlkPreamble so that it can be used directly for
-# stateless execution of specific transactions.
-proc processTransactions*(vmState: BaseVMState;
-                          header: BlockHeader;
-                          transactions: seq[Transaction]): Result[void, string]
+proc processTransactions*(vmState: BaseVMState; header: BlockHeader; transactions: seq[Transaction]): Result[void, string]
     {.gcsafe, raises: [CatchableError].} =
   vmState.receipts = newSeq[Receipt](transactions.len)
   vmState.cumulativeGasUsed = 0
@@ -51,18 +47,15 @@ proc processTransactions*(vmState: BaseVMState;
     let rc = vmState.processTransaction(tx, sender, header)
     if rc.isErr:
       let debugTx =tx.debug()
-      return err("Error processing tx with index " & $(txIndex) & ": " & debugTx)
+      return err("Error processing tx with index " & $(txIndex) & ": " & tx.repr)
     vmState.receipts[txIndex] = vmState.makeReceipt(tx.txType)
   ok()
 
-proc procBlkPreamble(vmState: BaseVMState;
-                     header: BlockHeader; body: BlockBody): bool
-    {.gcsafe, raises: [CatchableError].} =
+proc procBlkPreamble(vmState: BaseVMState; header: BlockHeader; body: BlockBody): bool {.gcsafe, raises: [CatchableError].} =
 
-  if vmState.com.daoForkSupport and
-     vmState.com.daoForkBlock.get == header.blockNumber:
-    vmState.mutateStateDB:
-      db.applyDAOHardFork()
+  # if vmState.com.daoForkSupport and vmState.com.daoForkBlock.get == header.blockNumber:
+  #   vmState.mutateStateDB:
+  #     db.applyDAOHardFork()
 
   if body.transactions.calcTxRoot != header.txRoot:
     debug "Mismatched txRoot",
@@ -71,16 +64,13 @@ proc procBlkPreamble(vmState: BaseVMState;
 
   if header.txRoot != EMPTY_ROOT_HASH:
     if body.transactions.len == 0:
-      debug "No transactions in body",
-        blockNumber = header.blockNumber
+      info "No transactions in body", blockNumber = header.blockNumber
       return false
-    else:
-      #trace "Has transactions",
-      #  blockNumber = header.blockNumber,
-      #  blockHash = header.blockHash
-      let r = processTransactions(vmState, header, body.transactions)
-      if r.isErr:
-        error("error in processing transactions", err=r.error)
+    # else:
+      # info "Has transactions",  blockNumber = header.blockNumber, blockHash = header.blockHash
+      # let r = processTransactions(vmState, header, body.transactions)
+      # if r.isErr:
+      #   error("error in processing transactions", err=r.error)
 
   # if vmState.determineFork >= FkShanghai:
   #   if header.withdrawalsRoot.isNone:
@@ -96,16 +86,14 @@ proc procBlkPreamble(vmState: BaseVMState;
   #   if body.withdrawals.isSome:
   #     raise ValidationError.newException("Pre-Shanghai block body must not have withdrawals")
 
-  if vmState.cumulativeGasUsed != header.gasUsed:
-    debug "gasUsed neq cumulativeGasUsed",
-      gasUsed = header.gasUsed,
-      cumulativeGasUsed = vmState.cumulativeGasUsed
-    return false
+  # if vmState.cumulativeGasUsed != header.gasUsed:
+  #   info "gasUsed neq cumulativeGasUsed", gasUsed = header.gasUsed, cumulativeGasUsed = vmState.cumulativeGasUsed 
+  #   return false
 
   if header.ommersHash != EMPTY_UNCLE_HASH:
     let h = vmState.com.db.persistUncles(body.uncles)
-    if h != header.ommersHash:
-      debug "Uncle hash mismatch"
+    if h != header.ommersHash: 
+      info "Uncle hash mismatch"
       return false
 
   true
@@ -114,33 +102,25 @@ proc procBlkEpilogue(vmState: BaseVMState;
                      header: BlockHeader; body: BlockBody): bool
     {.gcsafe, raises: [RlpError].} =
   # Reward beneficiary
-  vmState.mutateStateDB:
-    if vmState.generateWitness:
-      db.collectWitnessData()
-    let clearEmptyAccount = vmState.determineFork >= FkSpurious
-    db.persist(clearEmptyAccount, ClearCache in vmState.flags)
+  # vmState.mutateStateDB:
+  #   if vmState.generateWitness:
+  #     db.collectWitnessData()
+  #   let clearEmptyAccount = vmState.determineFork >= FkSpurious
+  #   db.persist(clearEmptyAccount, ClearCache in vmState.flags)
 
   let stateDb = vmState.stateDB
   if header.stateRoot != stateDb.rootHash:
-    debug "wrong state root in block",
-      blockNumber = header.blockNumber,
-      expected = header.stateRoot,
-      actual = stateDb.rootHash,
-      arrivedFrom = vmState.com.db.getCanonicalHead().stateRoot
+    info "wrong state root in block", blockNumber = header.blockNumber, expected = header.stateRoot, actual = stateDb.rootHash, arrivedFrom = vmState.com.db.getCanonicalHead().stateRoot
     return false
 
   let bloom = createBloom(vmState.receipts)
   if header.bloom != bloom:
-    debug "wrong bloom in block",
-      blockNumber = header.blockNumber
+    info "wrong bloom in block", blockNumber = header.blockNumber
     return false
 
   let receiptRoot = calcReceiptRoot(vmState.receipts)
   if header.receiptRoot != receiptRoot:
-    debug "wrong receiptRoot in block",
-      blockNumber = header.blockNumber,
-      actual = receiptRoot,
-      expected = header.receiptRoot
+    info "wrong receiptRoot in block", blockNumber = header.blockNumber, actual = receiptRoot, expected = header.receiptRoot
     return false
 
   true
@@ -156,30 +136,26 @@ proc processBlockNotPoA*(
     {.gcsafe, raises: [CatchableError].} =
   ## Processes `(header,body)` pair for a non-PoA network, only. This function
   ## will fail when applied to a PoA network like `Goerli`.
+  
   if vmState.com.consensus == ConsensusType.POA:
-    # PoA consensus engine unsupported, see the other version of
-    # processBlock() below
-    debug "Unsupported PoA request"
+    info "Unsupported PoA request"
     return ValidationResult.Error
 
   var dbTx = vmState.com.db.db.beginTransaction()
   defer: dbTx.dispose()
 
   if not vmState.procBlkPreamble(header, body):
+    error "procBlkPreamble", blockNumber= header.blockNumber
     return ValidationResult.Error
 
   # EIP-3675: no reward for miner in POA/POS
-  if vmState.com.consensus == ConsensusType.POW:
-    vmState.calculateReward(header, body)
+  # if vmState.com.consensus == ConsensusType.POW:
+  #   vmState.calculateReward(header, body)
 
   if not vmState.procBlkEpilogue(header, body):
+    error "procBlkEpilogue", blockNumber= header.blockNumber
     return ValidationResult.Error
 
-  # `applyDeletes = false`
-  # If the trie pruning activated, each of the block will have its own state
-  # trie keep intact, rather than destroyed by trie pruning. But the current
-  # block will still get a pruned trie. If trie pruning deactivated,
-  # `applyDeletes` have no effects.
   dbTx.commit(applyDeletes = false)
 
   ValidationResult.OK

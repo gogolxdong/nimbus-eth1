@@ -1,10 +1,3 @@
-# Nimbus
-# Copyright (c) 2018 Status Research & Development GmbH
-# Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
-#  * MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
-# at your option. This file may not be copied, modified, or distributed except according to those terms.
-
 import
   ./constants, ./errors, eth/[common, keys], ./utils/utils,
   common/evmforks, ./vm_gas_costs
@@ -76,7 +69,6 @@ proc toSignature*(tx: Transaction): Signature =
     raise newException(Exception, "Invalid signature")
 
 proc getSender*(tx: Transaction, output: var EthAddress): bool =
-  ## Find the address the transaction was sent from.
   var sig: Signature
   if tx.getSignature(sig):
     var txHash = tx.txHashNoSignature
@@ -86,7 +78,6 @@ proc getSender*(tx: Transaction, output: var EthAddress): bool =
       result = true
 
 proc getSender*(tx: Transaction): EthAddress =
-  ## Raises error on failure to recover public key
   if not tx.getSender(result):
     raise newException(ValidationError, "Could not derive sender address from transaction")
 
@@ -149,14 +140,12 @@ proc validateTxEip4844(tx: Transaction) =
     raise newException(ValidationError, "Invalid EIP-4844 transaction")
 
 proc validate*(tx: Transaction, fork: EVMFork) =
-  # parameters pass validation rules
   if tx.intrinsicGas(fork) > tx.gasLimit:
     raise newException(ValidationError, "Insufficient gas")
 
   if fork >= FkShanghai and tx.contractCreation and tx.payload.len > EIP3860_MAX_INITCODE_SIZE:
     raise newException(ValidationError, "Initcode size exceeds max")
 
-  # check signature validity
   var sender: EthAddress
   if not tx.getSender(sender):
     raise newException(ValidationError, "Invalid signature or failed message verification")
@@ -172,7 +161,6 @@ proc validate*(tx: Transaction, fork: EVMFork) =
 proc signTransaction*(tx: Transaction, privateKey: PrivateKey, chainId: ChainId, eip155: bool): Transaction =
   result = tx
   if eip155:
-    # trigger rlpEncodeEIP155 in nim-eth
     result.V = chainId.int64 * 2'i64 + 35'i64
 
   let
@@ -193,9 +181,6 @@ proc signTransaction*(tx: Transaction, privateKey: PrivateKey, chainId: ChainId,
 
 func eip1559TxNormalization*(tx: Transaction;
                              baseFee: GasInt; fork: EVMFork): Transaction =
-  ## This function adjusts a legacy transaction to EIP-1559 standard. This
-  ## is needed particularly when using the `validateTransaction()` utility
-  ## with legacy transactions.
   result = tx
   if tx.txType < TxEip1559:
     result.maxPriorityFee = tx.gasPrice

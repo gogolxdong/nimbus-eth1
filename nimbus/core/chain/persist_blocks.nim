@@ -1,16 +1,7 @@
-# Nimbus
-# Copyright (c) 2018 Status Research & Development GmbH
-# Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or
-#    http://www.apache.org/licenses/LICENSE-2.0)
-#  * MIT license ([LICENSE-MIT](LICENSE-MIT) or
-#    http://opensource.org/licenses/MIT)
-# at your option. This file may not be copied, modified, or distributed except
-# according to those terms.
-
 {.push raises: [].}
 
 import
+  sequtils,
   ../../vm_state,
   ../../vm_types,
   ../clique/clique_verify,
@@ -56,12 +47,10 @@ proc persistBlocksImpl(c: ChainRef; headers: openArray[BlockHeader];
   # Note that `0 < headers.len`, assured when called from `persistBlocks()`
   let vmState = BaseVMState()
   if not vmState.init(headers[0], c.com):
-    info "Cannot initialise VmState",
-      fromBlock = headers[0].blockNumber,
-      toBlock = headers[^1].blockNumber
+    info "Cannot initialise VmState", fromBlock = headers[0].blockNumber, toBlock = headers[^1].blockNumber
     return ValidationResult.Error
 
-  info "Persisting blocks", fromBlock = headers[0].blockNumber, toBlock = headers[^1].blockNumber
+  info "Persisting blocks", fromBlock = headers[0].blockNumber, toBlock = headers[^1].blockNumber, headerHash = headers.mapIt(it.blockHash)
 
   for i in 0 ..< headers.len:
     let
@@ -87,8 +76,7 @@ proc persistBlocksImpl(c: ChainRef; headers: openArray[BlockHeader];
     if validationResult != ValidationResult.OK:
       return validationResult
 
-    if c.validateBlock and c.extraValidation and
-       c.verifyFrom <= header.blockNumber:
+    if c.validateBlock and c.extraValidation and c.verifyFrom <= header.blockNumber:
 
       if c.com.consensus == ConsensusType.POA:
         var parent = if 0 < i: @[headers[i-1]] else: @[]
@@ -97,9 +85,7 @@ proc persistBlocksImpl(c: ChainRef; headers: openArray[BlockHeader];
           # mark it off so it would not auto-restore previous state
           c.clique.cliqueDispose(cliqueState)
         else:
-          info "PoA header verification failed",
-            blockNumber = header.blockNumber,
-            msg = $rc.error
+          info "PoA header verification failed", blockNumber = header.blockNumber, msg = $rc.error
           return ValidationResult.Error
       else:
         let res = c.com.validateHeaderAndKinship(
@@ -112,8 +98,8 @@ proc persistBlocksImpl(c: ChainRef; headers: openArray[BlockHeader];
           return ValidationResult.Error
 
     if NoPersistHeader notin flags:
-      discard c.db.persistHeaderToDb(
-        header, c.com.consensus == ConsensusType.POS, c.com.startOfHistory)
+      # discard c.db.persistHeaderToDb(header, c.com.consensus == ConsensusType.POS, c.com.startOfHistory)
+      discard c.db.persistHeaderToDb(header, c.com.consensus == ConsensusType.POS, header.parentHash)
 
     if NoSaveTxs notin flags:
       discard c.db.persistTransactions(header.blockNumber, body.transactions)
@@ -121,8 +107,8 @@ proc persistBlocksImpl(c: ChainRef; headers: openArray[BlockHeader];
     if NoSaveReceipts notin flags:
       discard c.db.persistReceipts(vmState.receipts)
 
-    if NoSaveWithdrawals notin flags and body.withdrawals.isSome:
-      discard c.db.persistWithdrawals(body.withdrawals.get)
+    # if NoSaveWithdrawals notin flags and body.withdrawals.isSome:
+    #   discard c.db.persistWithdrawals(body.withdrawals.get)
 
     c.com.syncCurrent = header.blockNumber
 
@@ -157,8 +143,7 @@ proc setCanonical*(c: ChainRef, header: BlockHeader): ValidationResult
   if result == ValidationResult.OK:
     discard c.db.setHead(header.blockHash)
 
-proc setCanonical*(c: ChainRef, blockHash: Hash256): ValidationResult
-                                {.gcsafe, raises: [CatchableError].} =
+proc setCanonical*(c: ChainRef, blockHash: Hash256): ValidationResult {.gcsafe, raises: [CatchableError].} =
   var header: BlockHeader
   if not c.db.getBlockHeader(blockHash, header):
     debug "Failed to get BlockHeader",

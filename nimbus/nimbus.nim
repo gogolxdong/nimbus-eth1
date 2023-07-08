@@ -208,6 +208,8 @@ proc setupP2P(nimbus: NimbusNode, conf: NimbusConf,
       enableDiscovery = conf.discovery != DiscoveryType.None,
       waitForPeers = waitForPeers)
 
+
+
 proc maybeStatelessAsyncDataSource*(nimbus: NimbusNode, conf: NimbusConf): Option[AsyncDataSource] =
   if conf.syncMode == SyncMode.Stateless:
     let rpcClient = waitFor(makeAnRpcClient(conf.statelessModeDataSourceUrl))
@@ -218,14 +220,11 @@ proc maybeStatelessAsyncDataSource*(nimbus: NimbusNode, conf: NimbusConf): Optio
 
 proc localServices(nimbus: NimbusNode, conf: NimbusConf,
                    com: CommonRef, protocols: set[ProtocolFlag]) =
-  # metrics logging
   if conf.logMetricsEnabled:
-    # https://github.com/nim-lang/Nim/issues/17369
     var logMetrics: proc(udata: pointer) {.gcsafe, raises: [].}
     logMetrics = proc(udata: pointer) =
       {.gcsafe.}:
         let registry = defaultRegistry
-      info "metrics", registry
       discard setTimer(Moment.fromNow(conf.logMetricsInterval.seconds), logMetrics)
     discard setTimer(Moment.fromNow(conf.logMetricsInterval.seconds), logMetrics)
 
@@ -254,16 +253,12 @@ proc localServices(nimbus: NimbusNode, conf: NimbusConf,
                 else:
                   @[httpCorsHook]
 
-    nimbus.rpcServer = newRpcHttpServer(
-      [initTAddress(conf.rpcAddress, conf.rpcPort)],
-      authHooks = hooks
-    )
+    nimbus.rpcServer = newRpcHttpServer([initTAddress(conf.rpcAddress, conf.rpcPort)],authHooks = hooks)
     setupCommonRpc(nimbus.ethNode, conf, nimbus.rpcServer)
 
     # Enable RPC APIs based on RPC flags and protocol flags
     let rpcFlags = conf.getRpcFlags()
-    if (RpcFlag.Eth in rpcFlags and ProtocolFlag.Eth in protocols) or
-       (conf.engineApiPort == conf.rpcPort):
+    if (RpcFlag.Eth in rpcFlags and ProtocolFlag.Eth in protocols) or (conf.engineApiPort == conf.rpcPort):
       setupEthRpc(nimbus.ethNode, nimbus.ctx, com, nimbus.txPool, nimbus.rpcServer)
     if RpcFlag.Debug in rpcFlags:
       setupDebugRpc(com, nimbus.rpcServer)

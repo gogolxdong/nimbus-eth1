@@ -76,8 +76,8 @@ proc rpcCallEvm*(call: RpcCallData, header: BlockHeader, com: CommonRef): CallRe
   let topHeader = BlockHeader(
     parentHash: header.blockHash,
     timestamp:  getTime().utc.toTime,
-    gasLimit:   0.GasInt,          ## ???
-    )    ## ???
+    gasLimit:   0.GasInt,        
+    )    
   let vmState = BaseVMState.new(topHeader, com)
   let params  = toCallParams(vmState, call, globalGasCap)
 
@@ -92,8 +92,8 @@ proc rpcEstimateGas*(cd: RpcCallData, header: BlockHeader, com: CommonRef, gasCa
   let topHeader = BlockHeader(
     parentHash: header.blockHash,
     timestamp:  getTime().utc.toTime,
-    gasLimit:   0.GasInt,          ## ???
-    )    ## ???
+    gasLimit:   0.GasInt,          
+    )    
   let vmState = BaseVMState.new(topHeader, com)
   let fork    = vmState.determineFork
   let txGas   = gasFees[fork][GasTransaction] # txGas always 21000, use constants?
@@ -149,10 +149,9 @@ proc rpcEstimateGas*(cd: RpcCallData, header: BlockHeader, com: CommonRef, gasCa
   let intrinsicGas = intrinsicGas(params, vmState)
 
   # Create a helper to check if a gas allowance results in an executable transaction
-  proc executable(gasLimit: GasInt): bool
-      {.gcsafe, raises: [CatchableError].} =
+  proc executable(gasLimit: GasInt): bool {.gcsafe, raises: [CatchableError].} =
+    info "executable"
     if intrinsicGas > gasLimit:
-      # Special case, raise gas limit
       return true
 
     params.gasLimit = gasLimit
@@ -219,8 +218,8 @@ proc callParamsForTest(tx: Transaction, sender: EthAddress, vmState: BaseVMState
   if tx.txType >= TxEip4844:
     result.versionedHashes = tx.versionedHashes
 
-proc txCallEvm*(tx: Transaction, sender: EthAddress, vmState: BaseVMState, fork: EVMFork): GasInt
-    {.gcsafe, raises: [CatchableError].} =
+proc txCallEvm*(tx: Transaction, sender: EthAddress, vmState: BaseVMState, fork: EVMFork): GasInt {.gcsafe, raises: [CatchableError].} =
+  # info "txCallEvm", sender=sender
   let call = callParamsForTx(tx, sender, vmState, fork)
   return runComputation(call).gasUsed
 

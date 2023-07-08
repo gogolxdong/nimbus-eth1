@@ -77,10 +77,8 @@ proc getHash(db: ChainDBRef, key: DbKey, output: var Hash256): bool {.inline.} =
 
 proc getCanonicalHead*(db: ChainDBRef): BlockHeader =
   var headHash: Hash256
-  if not db.getHash(canonicalHeadHashKey(), headHash) or
-      not db.getBlockHeader(headHash, result):
-    raise newException(CanonicalHeadNotFound,
-                      "No canonical head set for this chain")
+  if not db.getHash(canonicalHeadHashKey(), headHash) or not db.getBlockHeader(headHash, result):
+    raise newException(CanonicalHeadNotFound, "No canonical head set for this chain")
 
 proc getCanonicalHeaderHash*(db: ChainDBRef): Hash256 =
   discard db.getHash(canonicalHeadHashKey(), result)
@@ -432,15 +430,11 @@ proc getReceipts*(db: ChainDBRef; receiptRoot: Hash256): seq[Receipt] =
     receipts.add(r)
   return receipts
 
-proc persistHeaderToDb*(
-    db: ChainDBRef;
-    header: BlockHeader;
-    forceCanonical: bool;
-    startOfHistory = GENESIS_PARENT_HASH;
-      ): seq[BlockHeader] =
+proc persistHeaderToDb*(db: ChainDBRef; header: BlockHeader; forceCanonical: bool;startOfHistory = GENESIS_PARENT_HASH;): seq[BlockHeader] =
   let isStartOfHistory = header.parentHash == startOfHistory
   let headerHash = header.blockHash
-  if not isStartOfHistory and not db.headerExists(header.parentHash):
+  var headerExists = db.headerExists(header.parentHash)
+  if not isStartOfHistory and not headerExists:
     raise newException(ParentNotFound, "Cannot persist block header " & $headerHash & " with unknown parent " & $header.parentHash)
   db.db.put(genericHashKey(headerHash).toOpenArray, rlp.encode(header))
 

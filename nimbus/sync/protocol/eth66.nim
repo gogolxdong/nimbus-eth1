@@ -1,19 +1,5 @@
-# Nimbus - Ethereum Wire Protocol
-#
-# Copyright (c) 2018-2021 Status Research & Development GmbH
-# Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or
-#    http://www.apache.org/licenses/LICENSE-2.0)
-#  * MIT license ([LICENSE-MIT](LICENSE-MIT) or
-#    http://opensource.org/licenses/MIT)
-# at your option. This file may not be copied, modified, or distributed
-# except according to those terms.
-
-## This module implements Ethereum Wire Protocol version 66, `eth/66`.
-## Specification:
-##   `eth/66 <https://github.com/ethereum/devp2p/blob/master/caps/eth.md>`_
-
 import
+  sequtils,
   stint,
   chronicles,
   chronos,
@@ -146,8 +132,7 @@ p2pProtocol eth66(version = ethVersion,
   # User message 0x01: NewBlockHashes.
   proc newBlockHashes(peer: Peer, hashes: openArray[NewBlockHashesAnnounce]) =
     when trEthTraceGossipOk:
-      info trEthRecvReceived & "NewBlockHashes (0x01)", peer,
-        hashes=hashes.len
+      info trEthRecvReceived & "NewBlockHashes (0x01)", peer, hashes=hashes.mapIt((it.hash, it.number))
 
     let ctx = peer.networkState()
     ctx.handleNewBlockHashes(peer, hashes)

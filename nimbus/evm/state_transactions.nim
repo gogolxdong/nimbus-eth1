@@ -9,6 +9,7 @@
 # according to those terms.
 
 import
+  chronicles,
   chronos,
   eth/common/eth_types,
   ../constants,
@@ -57,14 +58,15 @@ proc postExecComputation(c: Computation) =
       c.refundSelfDestruct()
   c.vmState.status = c.isSuccess
 
-proc execComputation*(c: Computation)
-    {.gcsafe, raises: [CatchableError].} =
+proc execComputation*(c: Computation) {.gcsafe, raises: [CatchableError].} =
+  info "execComputation"
   c.preExecComputation()
   c.execCallOrCreate()
   c.postExecComputation()
 
 # FIXME-duplicatedForAsync
 proc asyncExecComputation*(c: Computation): Future[void] {.async.} =
+  # info "asyncExecComputation", state=c.vmState, code=c.code.bytes.len
   c.preExecComputation()
   await c.asyncExecCallOrCreate()
   c.postExecComputation()

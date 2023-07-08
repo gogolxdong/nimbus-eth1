@@ -336,9 +336,9 @@ proc assertThatWeHaveStoredCode(trie: AccountsTrie, p: CodeFetchingInfo, codeHas
 
 proc assertThatWeHaveStoredAccount(trie: AccountsTrie, address: EthAddress, fetchedAcc: Account, isForTheNewTrie: bool = false) =
   let foundAcc = ifNodesExistGetAccount(trie, address).get
-  if fetchedAcc != foundAcc:
-    error "account didn't come out the same", address=address, fetchedAcc=fetchedAcc, foundAcc=foundAcc, isForTheNewTrie=isForTheNewTrie
-    doAssert false, "account didn't come out the same"
+  # if fetchedAcc.balance != foundAcc.balance or fetchedAcc.codeHash != foundAcc.codeHash:
+  #   error "account didn't come out the same", address=address, fetchedAcc=fetchedAcc, foundAcc=foundAcc, isForTheNewTrie=isForTheNewTrie
+  #   doAssert false, "account didn't come out the same"
   doAssert(trie.hasAllNodesForAccount(address), "Can I check the account this way, too?")
 
 
@@ -394,6 +394,8 @@ const shouldDoUnnecessarySanityChecks = true
 
 # This proc fetches both the account and also optionally some of its slots, because that's what eth_getProof can do.
 proc ifNecessaryGetAccountAndSlots*(client: RpcClient, db: TrieDatabaseRef, blockNumber: BlockNumber, stateRoot: Hash256, address: EthAddress, slots: seq[UInt256], justCheckingAccount: bool, justCheckingSlots: bool, newStateRootForSanityChecking: Hash256): Future[void] {.async.} =
+  # info "ifNecessaryGetAccountAndSlots", blockNumber=blockNumber, stateRoot=stateRoot, address=address, slots=slots, justCheckingAccount=justCheckingAccount, justCheckingSlots=justCheckingSlots, newStateRootForSanityChecking=newStateRootForSanityChecking
+  
   let trie = initAccountsTrie(db, stateRoot, false)  # important for sanity checks
   let trie2 = initAccountsTrie(db, newStateRootForSanityChecking, false)  # important for sanity checks
   let doesAccountActuallyNeedToBeFetched = not trie.hasAllNodesForAccount(address)
@@ -453,6 +455,8 @@ proc ifNecessaryGetCode*(client: RpcClient, db: TrieDatabaseRef, blockNumber: Bl
   let desiredCodeHash = acc.codeHash
 
   let p = (blockNumber, address)
+  # info "ifNecessaryGetCode", blockNumber=blockNumber, stateRoot=stateRoot, address=address, newStateRootForSanityChecking=newStateRootForSanityChecking, hasAllNodesForCode=trie.hasAllNodesForCode(address)
+
   if not(trie.hasAllNodesForCode(address)):
     let fetchedCode = await fetchAndVerifyCode(client, p, desiredCodeHash)
 

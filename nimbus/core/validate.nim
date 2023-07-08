@@ -243,7 +243,6 @@ proc validateTransaction*(
     balance = roDB.getBalance(sender)
     nonce = roDB.getNonce(sender)
 
-  info "validateTransaction", balance=balance, nonce=nonce
   # if tx.txType == TxEip2930 and fork < FkBerlin:
   #   return err("invalid tx: Eip2930 Tx type detected before Berlin")
 
@@ -261,23 +260,17 @@ proc validateTransaction*(
       return err("invalid tx: block header gasLimit exceeded. maxLimit=$1, gasLimit=$2" % [
         $maxLimit, $tx.gasLimit])
 
-    # ensure that the user was willing to at least pay the base fee
     if tx.maxFee < baseFee.truncate(int64):
-      return err("invalid tx: maxFee is smaller than baseFee. maxFee=$1, baseFee=$2" % [
-        $tx.maxFee, $baseFee])
+      return err("invalid tx: maxFee is smaller than baseFee. maxFee=$1, baseFee=$2" % [$tx.maxFee, $baseFee])
 
-    # The total must be the larger of the two
     if tx.maxFee < tx.maxPriorityFee:
       return err("invalid tx: maxFee is smaller than maPriorityFee. maxFee=$1, maxPriorityFee=$2" % [
         $tx.maxFee, $tx.maxPriorityFee])
 
-    # the signer must be able to fully afford the transaction
     let gasCost = tx.gasCost()
-    info "validateTransaction", gasCost=gasCost
 
     if balance < gasCost:
-      return err("invalid tx: not enough cash for gas. avail=$1, require=$2" % [
-        $balance, $gasCost])
+      return err("invalid tx: not enough cash for gas. sender=$1, avail=$2, require=$3" % [$sender, $balance, $gasCost])
 
     if balance - gasCost < tx.value:
       echo "balance - gasCost < tx.value"
@@ -285,7 +278,6 @@ proc validateTransaction*(
         $balance, $(balance-gasCost), $tx.value])
 
     var intrinsicGas = tx.intrinsicGas(fork)
-    info "validateTransaction", intrinsicGas=intrinsicGas
     if tx.gasLimit < intrinsicGas:
       return err("invalid tx: not enough gas to perform calculation. avail=$1, require=$2" % [
         $tx.gasLimit, $intrinsicGas])
@@ -298,12 +290,10 @@ proc validateTransaction*(
       return err("invalid tx: nonce at maximum")
 
     let codeHash = roDB.getCodeHash(sender)
-    info "validateTransaction", getCodeHash=codeHash
+    info "validateTransaction",sender=sender, balance=balance, nonce=nonce, gasCost=gasCost, intrinsicGas=intrinsicGas, getCodeHash=codeHash
 
     if codeHash != EMPTY_SHA3:
-      return err("invalid tx: sender is not an EOA. sender=$1, codeHash=$2" % [
-        sender.toHex, codeHash.data.toHex])
-
+      return err("invalid tx: sender is not an EOA. sender=$1, codeHash=$2" % [sender.toHex, codeHash.data.toHex])
 
     # if fork >= FkCancun:
     #   if tx.payload.len > MAX_CALLDATA_SIZE:
@@ -337,7 +327,6 @@ proc validateTransaction*(
 
       # ensure that the user was willing to at least pay the current data gasprice
       let dataGasPrice = getDataGasPrice(excessDataGas)
-      info "validateTransaction", dataGasPrice=dataGasPrice
       
       if tx.maxFeePerDataGas.uint64 < dataGasPrice:
         return err("invalid tx: maxFeePerDataGas smaller than dataGasPrice. " &

@@ -1,14 +1,7 @@
-# Nimbus - Common entry point to the EVM from all different callers
-#
-# Copyright (c) 2018-2021 Status Research & Development GmbH
-# Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
-#  * MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
-# at your option. This file may not be copied, modified, or distributed except according to those terms.
-
 {.push raises: [].}
 
 import
+  chronicles,
   eth/common/eth_types, stint, options, stew/ptrops,
   chronos,
   ".."/[vm_types, vm_state, vm_computation, vm_state_transactions],
@@ -279,15 +272,14 @@ proc finishRunningComputation(host: TransactionHost, call: CallParams): CallResu
   result.stack = c.stack
   result.memory = c.memory
 
-proc runComputation*(call: CallParams): CallResult
-    {.gcsafe, raises: [CatchableError].} =
+proc runComputation*(call: CallParams): CallResult {.gcsafe, raises: [CatchableError].} =
   let host = setupHost(call)
   prepareToRunComputation(host, call)
-
   when defined(evmc_enabled):
     doExecEvmc(host, call)
   else:
-    execComputation(host.computation)
+    waitFor asyncExecComputation(host.computation)
+    # execComputation(host.computation)
 
   finishRunningComputation(host, call)
 

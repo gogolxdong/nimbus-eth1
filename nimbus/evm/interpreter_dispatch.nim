@@ -1,13 +1,3 @@
-# Nimbus
-# Copyright (c) 2018-2023 Status Research & Development GmbH
-# Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or
-#    http://www.apache.org/licenses/LICENSE-2.0)
-#  * MIT license ([LICENSE-MIT](LICENSE-MIT) or
-#    http://opensource.org/licenses/MIT)
-# at your option. This file may not be copied, modified, or distributed except
-# according to those terms.
-
 const
   # help with low memory when compiling selectVM() function
   lowmem {.intdefine.}: int = 0
@@ -234,16 +224,12 @@ proc executeOpcodes*(c: Computation, shouldPrepareTracer: bool = true)
     #trace "executeOpcodes error", msg=c.error.info
 
 when vm_use_recursion:
-  # Recursion with tiny stack frame per level.
-  proc execCallOrCreate*(c: Computation)
-      {.gcsafe, raises: [CatchableError].} =
+  proc execCallOrCreate*(c: Computation) {.gcsafe, raises: [CatchableError].} =
     defer: c.dispose()
     if c.beforeExec():
       return
     c.executeOpcodes()
     while not c.continuation.isNil:
-      # If there's a continuation, then it's because there's either
-      # a child (i.e. call or create) or a pendingAsyncOperation.
       if not c.pendingAsyncOperation.isNil:
         let p = c.pendingAsyncOperation
         c.pendingAsyncOperation = nil
@@ -259,8 +245,7 @@ when vm_use_recursion:
     c.afterExec()
 
 else:
-  proc execCallOrCreate*(cParam: Computation)
-      {.gcsafe, raises: [CatchableError].} =
+  proc execCallOrCreate*(cParam: Computation) {.gcsafe, raises: [CatchableError].} =
     var (c, before, shouldPrepareTracer) = (cParam, true, true)
     defer:
       while not c.isNil:

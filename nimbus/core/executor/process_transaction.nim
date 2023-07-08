@@ -80,10 +80,8 @@ proc asyncProcessTransactionImpl(
   var res: Result[GasInt, string] = err("")
 
   await ifNecessaryGetAccounts(vmState, @[sender, vmState.coinbase()])
-  info "ifNecessaryGetAccounts",  sender=sender, coinbase=vmState.coinbase()
   if tx.to.isSome:
     await ifNecessaryGetCode(vmState, tx.to.get)
-    info "ifNecessaryGetCode",  vmState=vmState, to=tx.to.get
 
   if vmState.gasPool < tx.gasLimit:
     return err("gas limit reached. gasLimit=$1, gasNeeded=$2" % [$vmState.gasPool, $tx.gasLimit])
@@ -98,7 +96,6 @@ proc asyncProcessTransactionImpl(
     let
       accTx = vmState.stateDB.beginSavepoint
       gasBurned = tx.txCallEvm(sender, vmState, fork)
-
     res = commitOrRollbackDependingOnGasUsed(vmState, accTx, header, tx, gasBurned, priorityFee)
   else:
     res = err(txRes.error)

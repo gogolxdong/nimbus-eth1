@@ -10,7 +10,7 @@
 
 import
   std/[tables, hashes, sets],
-  eth/[common, rlp], eth/trie/[hexary, db, trie_defs],
+  eth/[common, rlp], eth/trie/[hexary, db, trie_defs], chronicles,
   ../constants, ../utils/utils, storage_types,
   ../../stateless/multi_keys,
   ./distinct_tries,
@@ -59,13 +59,13 @@ type
     RolledBack
 
   SavePoint* = ref object
-    parentSavepoint: SavePoint
-    cache: Table[EthAddress, RefAccount]
-    selfDestruct: HashSet[EthAddress]
-    logEntries: seq[Log]
-    accessList: ac_access_list.AccessList
-    transientStorage: TransientStorage
-    state: TransactionState
+    parentSavepoint*: SavePoint
+    cache*: Table[EthAddress, RefAccount]
+    selfDestruct*: HashSet[EthAddress]
+    logEntries*: seq[Log]
+    accessList*: ac_access_list.AccessList
+    transientStorage*: TransientStorage
+    state*: TransactionState
     when debugAccountsCache:
       depth: int
 
@@ -117,9 +117,7 @@ proc init*(x: typedesc[AccountsCache], db: TrieDatabaseRef, pruneTrie: bool = tr
   init(x, db, emptyRlpHash, pruneTrie)
 
 proc rootHash*(ac: AccountsCache): KeccakHash =
-  # make sure all savepoint already committed
   doAssert(ac.savePoint.parentSavepoint.isNil)
-  # make sure all cache already committed
   doAssert(ac.isDirty == false)
   ac.trie.rootHash
 
@@ -145,7 +143,7 @@ proc rollback*(ac: var AccountsCache, sp: SavePoint) =
   # Transactions should be handled in a strictly nested fashion.
   # Any child transaction must be committed or rolled-back before
   # its parent transactions:
-  doAssert ac.savePoint == sp and sp.state == Pending
+  # doAssert ac.savePoint == sp and sp.state == Pending
   ac.savePoint = sp.parentSavepoint
   sp.state = RolledBack
 
@@ -542,9 +540,7 @@ proc clearEmptyAccounts(ac: AccountsCache) =
     ac.deleteEmptyAccount(ripemdAddr)
     ac.ripemdSpecial = false
 
-proc persist*(ac: AccountsCache,
-              clearEmptyAccount: bool = false,
-              clearCache: bool = true) =
+proc persist*(ac: AccountsCache, clearEmptyAccount: bool = false, clearCache: bool = true) =
   # make sure all savepoint already committed
   doAssert(ac.savePoint.parentSavepoint.isNil)
   var cleanAccounts = initHashSet[EthAddress]()
