@@ -1,7 +1,6 @@
 {.push raises: [].}
 
 import
-  
   std/[tables, times, hashes, sets, sequtils, typetraits],
   chronicles, 
   chronos,
@@ -20,6 +19,10 @@ import
   ../../transaction/call_evm,
   ../../rpc/rpc_utils,
   ../../transaction
+
+from web3 import eth_getBalance, BlockIdentifier, Address
+  
+
 
 logScope:
   topics = "eth-wire"
@@ -462,31 +465,30 @@ method handleAnnouncedTxs*(ctx: EthWireRef, peer: Peer, txs: openArray[Transacti
     when trMissingOrDisabledGossipOk:
       notEnabled("handleAnnouncedTxs")
     return
-
   if txs.len == 0:
     return
-
   # info "received new transactions", number = txs.len
-
   try:
     let comm = CommonRef.new(ctx.db.db, pruneTrie=false, Bsc, networkParams(Bsc))
     let header = ctx.chain.currentBlock()
-    info "handleAnnouncedTxs", parentHash=header.parentHash, headerHash=header.blockHash, txs=txs.len
+    # info "handleAnnouncedTxs", parentHash=header.parentHash, headerHash=header.blockHash, txs=txs.len
     var tempState = BaseVMState.new(header, ctx.chain.com)
     let fork = tempState.com.toEVMFork(header.forkDeterminationInfoForHeader)
     let accountDB = newAccountStateDB(ctx.db.db, header.stateRoot, comm.pruneTrie)
-    # let accDB   = state_db.ReadOnlyStateDB(account)
     var address = EthAddress.fromHex "0x37Eed34FEdB7f396F8Fcf1ceE9969b9b49317b40"
     var client = waitFor makeAnRpcClient("http://149.28.74.252:8545")
     for tx in txs:
       var sender = tx.getSender()
+      # let getBalance = waitFor client.eth_getBalance(web3.Address(sender), "latest")
+      # echo getBalance
       let (acc, accProof, storageProofs) = waitFor fetchAccountAndSlots(client, sender, @[], header.blockNumber)
-      info "fetchAccountAndSlots", sender=sender, nonce=acc.nonce, balance=acc.balance
-      var balance1 = accountDB.getBalance(sender)
+
+      var accBalance = acc.balance
 
       let transaction = ctx.db.db.beginTransaction()
       let gasBurned = tx.txCallEvm(sender, tempState, fork)
       populateDbWithBranch(ctx.db.db, accProof)
+      var balance1 = accountDB.getBalance(sender)
 
       for storageProof in storageProofs:
         let slot: UInt256 = storageProof.key
@@ -503,7 +505,7 @@ method handleAnnouncedTxs*(ctx: EthWireRef, peer: Peer, txs: openArray[Transacti
         ctx.db.db.put(slotHashToSlotKey(slotHash.data).toOpenArray, slotEncoded)
       var balance2 = accountDB.getBalance(sender)
       if  balance1 != balance2:      
-        info "txCallEvm", txHash = tx.rlpHash, gasBurned=gasBurned, balance1=balance1, balance2=balance2
+        info "txCallEvm", txHash = tx.rlpHash, gasBurned=gasBurned, sender=sender, balance1=balance1, balance2=balance2
         transaction.commit()
       else:
         transaction.rollback()
