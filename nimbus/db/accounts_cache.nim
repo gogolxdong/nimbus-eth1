@@ -33,7 +33,7 @@ type
   AccountFlags = set[AccountFlag]
 
   RefAccount = ref object
-    account: Account
+    account*: Account
     flags: AccountFlags
     code: seq[byte]
     originalStorage: TableRef[UInt256, UInt256]

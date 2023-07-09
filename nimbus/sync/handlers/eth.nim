@@ -264,41 +264,39 @@ proc sendTransactions(ctx: EthWireRef,
 proc fetchTransactions(ctx: EthWireRef, reqHashes: seq[Hash256], peer: Peer): Future[void] {.async.} =
   debug "fetchTx: requesting txs", number = reqHashes.len
 
-  try:
+  # try:
+  #   let res = await peer.getPooledTransactions(reqHashes)
+  #   if res.isNone:
+  #     error "not able to get pooled transactions"
+  #     return
 
-    let res = await peer.getPooledTransactions(reqHashes)
-    if res.isNone:
-      error "not able to get pooled transactions"
-      return
+  #   let txs = res.get()
+  #   debug "fetchTx: received requested txs", number = txs.transactions.len
 
-    let txs = res.get()
-    debug "fetchTx: received requested txs",
-      number = txs.transactions.len
+  #   # Remove from pending list regardless if tx is in result
+  #   for tx in txs.transactions:
+  #     let txHash = rlpHash(tx)
+  #     ctx.pending.excl txHash
 
-    # Remove from pending list regardless if tx is in result
-    for tx in txs.transactions:
-      let txHash = rlpHash(tx)
-      ctx.pending.excl txHash
+  #   ctx.txPool.add(txs.transactions)
 
-    ctx.txPool.add(txs.transactions)
+  # except TransportError:
+  #   debug "Transport got closed during fetchTransactions"
+  #   return
+  # except CatchableError as e:
+  #   debug "Exception in fetchTransactions", exc = e.name, err = e.msg
+  #   return
 
-  except TransportError:
-    debug "Transport got closed during fetchTransactions"
-    return
-  except CatchableError as e:
-    debug "Exception in fetchTransactions", exc = e.name, err = e.msg
-    return
+  # var newTxHashes = newSeqOfCap[Hash256](reqHashes.len)
+  # for txHash in reqHashes:
+  #   if ctx.inPoolAndOk(txHash):
+  #     newTxHashes.add txHash
 
-  var newTxHashes = newSeqOfCap[Hash256](reqHashes.len)
-  for txHash in reqHashes:
-    if ctx.inPoolAndOk(txHash):
-      newTxHashes.add txHash
+  # let peers = ctx.getPeers(peer)
+  # if peers.len == 0 or newTxHashes.len == 0:
+  #   return
 
-  let peers = ctx.getPeers(peer)
-  if peers.len == 0 or newTxHashes.len == 0:
-    return
-
-  await ctx.sendNewTxHashes(newTxHashes, peers)
+  # await ctx.sendNewTxHashes(newTxHashes, peers)
 
 # ------------------------------------------------------------------------------
 # Private functions: peer observer
@@ -431,8 +429,7 @@ method getPooledTxs*(ctx: EthWireRef, hashes: openArray[Hash256]): seq[Transacti
     else:
       trace "handlers.getPooledTxs: tx not found", txHash
 
-method getBlockBodies*(ctx: EthWireRef, hashes: openArray[Hash256]): seq[BlockBody]
-    {.gcsafe, raises: [RlpError].} =
+method getBlockBodies*(ctx: EthWireRef, hashes: openArray[Hash256]): seq[BlockBody] {.gcsafe, raises: [RlpError].} =
   let db = ctx.db
   var body: BlockBody
   for blockHash in hashes:
@@ -442,8 +439,7 @@ method getBlockBodies*(ctx: EthWireRef, hashes: openArray[Hash256]): seq[BlockBo
       result.add BlockBody()
       trace "handlers.getBlockBodies: blockBody not found", blockHash
 
-method getBlockHeaders*(ctx: EthWireRef, req: BlocksRequest): seq[BlockHeader]
-    {.gcsafe, raises: [RlpError].} =
+method getBlockHeaders*(ctx: EthWireRef, req: BlocksRequest): seq[BlockHeader] {.gcsafe, raises: [RlpError].} =
   let db = ctx.db
   var foundBlock: BlockHeader
   result = newSeqOfCap[BlockHeader](req.maxResults)
@@ -472,25 +468,28 @@ method handleAnnouncedTxs*(ctx: EthWireRef, peer: Peer, txs: openArray[Transacti
     let comm = CommonRef.new(ctx.db.db, pruneTrie=false, Bsc, networkParams(Bsc))
     let header = ctx.chain.currentBlock()
     # info "handleAnnouncedTxs", parentHash=header.parentHash, headerHash=header.blockHash, txs=txs.len
-    var tempState = BaseVMState.new(header, ctx.chain.com)
-    let fork = tempState.com.toEVMFork(header.forkDeterminationInfoForHeader)
+    var vmState = BaseVMState.new(header, ctx.chain.com)
+    let fork = vmState.com.toEVMFork(header.forkDeterminationInfoForHeader)
     let accountDB = newAccountStateDB(ctx.db.db, header.stateRoot, comm.pruneTrie)
     var address = EthAddress.fromHex "0x37Eed34FEdB7f396F8Fcf1ceE9969b9b49317b40"
     var client = waitFor makeAnRpcClient("http://149.28.74.252:8545")
     for tx in txs:
       var sender = tx.getSender()
-      # let getBalance = waitFor client.eth_getBalance(web3.Address(sender), "latest")
-      # echo getBalance
       let (acc, accProof, storageProofs) = waitFor fetchAccountAndSlots(client, sender, @[], header.blockNumber)
 
       var accBalance = acc.balance
 
-      let transaction = ctx.db.db.beginTransaction()
-      let gasBurned = tx.txCallEvm(sender, tempState, fork)
+      var balance1 = vmState.stateDB.getBalance(sender)
+      let accTx = vmState.stateDB.beginSavepoint
+      let gasBurned = tx.txCallEvm(sender, vmState, fork)
+      vmState.stateDB.commit(accTx)
+      var balance2 = vmState.stateDB.getBalance(sender)
+      info "txCallEvm", txHash = tx.rlpHash, gasBurned=gasBurned, sender=sender,accBalance=accBalance, balance1=balance1, balance2=balance2
+      # else:
+        # vmState.stateDB.rollback(accTx)
       populateDbWithBranch(ctx.db.db, accProof)
-      var balance1 = accountDB.getBalance(sender)
-
-      for storageProof in storageProofs:
+      for index, storageProof in storageProofs:
+        echo index
         let slot: UInt256 = storageProof.key
         let fetchedVal: UInt256 = storageProof.value
         let storageMptNodes: seq[seq[byte]] = storageProof.proof.mapIt(distinctBase(it))
@@ -503,13 +502,6 @@ method handleAnnouncedTxs*(ctx: EthWireRef, peer: Peer, txs: openArray[Transacti
         let slotHash = keccakHash(slotAsKey)
         let slotEncoded = rlp.encode(slot)
         ctx.db.db.put(slotHashToSlotKey(slotHash.data).toOpenArray, slotEncoded)
-      var balance2 = accountDB.getBalance(sender)
-      if  balance1 != balance2:      
-        info "txCallEvm", txHash = tx.rlpHash, gasBurned=gasBurned, sender=sender, balance1=balance1, balance2=balance2
-        transaction.commit()
-      else:
-        transaction.rollback()
-
   except:
     echo getCurrentExceptionMsg()
 
@@ -540,7 +532,6 @@ method handleAnnouncedTxs*(ctx: EthWireRef, peer: Peer, txs: openArray[Transacti
     return
 
   asyncSpawn ctx.sendTransactions(txHashes, validTxs, peers[0..<sendFull])
-
   asyncSpawn ctx.sendNewTxHashes(newTxHashes, peers[sendFull..^1])
 
 method handleAnnouncedTxsHashes*(ctx: EthWireRef, peer: Peer, txHashes: openArray[Hash256]) =
@@ -588,7 +579,7 @@ method handleNewBlock*(ctx: EthWireRef, peer: Peer, blk: EthBlock, totalDifficul
     let asyncFactory = AsyncOperationFactory(maybeDataSource: some(asyncDataSource))
     let parentHeader = waitFor(asyncDataSource.fetchBlockHeaderWithHash(blk.header.parentHash))
     let body = BlockBody(transactions: blk.txs, uncles: blk.uncles)
-    let vmState = createVmStateForStatelessMode(ctx.chain.com, blk.header, body, parentHeader, asyncFactory).get
+    # let vmState = createVmStateForStatelessMode(ctx.chain.com, blk.header, body, parentHeader, asyncFactory).get
     # let res = vmState.processBlock(ctx.chain.com.poa, blk.header, body)
     var res = ctx.chain.persistBlocks([blk.header], [body])
     if res == ValidationResult.Error:

@@ -21,8 +21,7 @@ proc commitOrRollbackDependingOnGasUsed(vmState: BaseVMState, accTx: SavePoint,h
   if header.gasLimit < vmState.cumulativeGasUsed + gasBurned:
     try:
       vmState.stateDB.rollback(accTx)
-      return err("invalid tx: block header gasLimit reached. gasLimit=$1, gasUsed=$2, addition=$3" % [
-        $header.gasLimit, $vmState.cumulativeGasUsed, $gasBurned])
+      return err("invalid tx: block header gasLimit reached. gasLimit=$1, gasUsed=$2, addition=$3" % [$header.gasLimit, $vmState.cumulativeGasUsed, $gasBurned])
     except ValueError as ex:
       return err(ex.msg)
   else:
