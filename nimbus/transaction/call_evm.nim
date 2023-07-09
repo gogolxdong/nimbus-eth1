@@ -219,12 +219,10 @@ proc callParamsForTest(tx: Transaction, sender: EthAddress, vmState: BaseVMState
     result.versionedHashes = tx.versionedHashes
 
 proc txCallEvm*(tx: Transaction, sender: EthAddress, vmState: BaseVMState, fork: EVMFork): GasInt {.gcsafe, raises: [CatchableError].} =
-  # info "txCallEvm", sender=sender
   let call = callParamsForTx(tx, sender, vmState, fork)
   return runComputation(call).gasUsed
 
-proc testCallEvm*(tx: Transaction, sender: EthAddress, vmState: BaseVMState, fork: EVMFork): CallResult
-    {.gcsafe, raises: [CatchableError].} =
+proc testCallEvm*(tx: Transaction, sender: EthAddress, vmState: BaseVMState, fork: EVMFork): CallResult {.gcsafe, raises: [CatchableError].} =
   let call = callParamsForTest(tx, sender, vmState, fork)
   runComputation(call)
 

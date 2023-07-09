@@ -50,7 +50,7 @@ proc persistBlocksImpl(c: ChainRef; headers: openArray[BlockHeader];
     info "Cannot initialise VmState", fromBlock = headers[0].blockNumber, toBlock = headers[^1].blockNumber
     return ValidationResult.Error
 
-  info "Persisting blocks", fromBlock = headers[0].blockNumber, toBlock = headers[^1].blockNumber, headerHash = headers.mapIt(it.blockHash)
+  # info "Persisting blocks", fromBlock = headers[0].blockNumber, toBlock = headers[^1].blockNumber, headerHash = headers.mapIt(it.blockHash)
 
   for i in 0 ..< headers.len:
     let

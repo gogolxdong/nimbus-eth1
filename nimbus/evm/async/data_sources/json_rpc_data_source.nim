@@ -189,12 +189,7 @@ proc fetchAccountAndSlots*(rpcClient: RpcClient, address: EthAddress, slots: seq
   let proofResponse: ProofResponse = await rpcClient.eth_getProof(a, slots, bid)
   debug "Received response to eth_getProof", proofResponse=proofResponse
 
-  let acc = Account(
-    nonce: distinctBase(proofResponse.nonce),
-    balance: proofResponse.balance,
-    storageRoot: mdigestFromFixedBytes(proofResponse.storageHash),
-    codeHash: mdigestFromFixedBytes(proofResponse.codeHash)
-  )
+  let acc = Account(nonce: distinctBase(proofResponse.nonce), balance: proofResponse.balance, storageRoot: mdigestFromFixedBytes(proofResponse.storageHash), codeHash: mdigestFromFixedBytes(proofResponse.codeHash))
   debug "Parsed response to eth_getProof", acc=acc
   let mptNodesBytes: seq[seq[byte]] = proofResponse.accountProof.mapIt(distinctBase(it))
   durationSpentDoingFetches += now() - t0
@@ -342,7 +337,7 @@ proc assertThatWeHaveStoredAccount(trie: AccountsTrie, address: EthAddress, fetc
   doAssert(trie.hasAllNodesForAccount(address), "Can I check the account this way, too?")
 
 
-proc verifyFetchedSlot(accountStorageRoot: Hash256, slot: UInt256, fetchedVal: UInt256, storageMptNodes: seq[seq[byte]]): Result[void, string] =
+proc verifyFetchedSlot*(accountStorageRoot: Hash256, slot: UInt256, fetchedVal: UInt256, storageMptNodes: seq[seq[byte]]): Result[void, string] =
   if storageMptNodes.len == 0:
     # I think an empty storage proof is okay; I see lots of these
     # where the account is empty and the value is zero.
@@ -385,7 +380,7 @@ proc assertThatWeHaveStoredBlockHeader(chainDB: ChainDBRef, blockNumber: BlockNu
   let h = chainDB.getBlockHash(blockNumber)
   doAssert(h == header.blockHash, "stored the block header for block " & $(blockNumber))
 
-proc raiseExceptionIfError[V, E](whatAreWeVerifying: V, r: Result[void, E]) =
+proc raiseExceptionIfError*[V, E](whatAreWeVerifying: V, r: Result[void, E]) =
   if r.isErr:
     error("async code failed to verify", whatAreWeVerifying=whatAreWeVerifying, err=r.error)
     raise newException(CatchableError, "async code failed to verify: " & $(whatAreWeVerifying) & ", error is: " & $(r.error))

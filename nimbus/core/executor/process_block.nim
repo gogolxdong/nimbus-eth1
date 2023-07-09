@@ -35,8 +35,7 @@ import
 func gwei(n: uint64): UInt256 =
   n.u256 * (10 ^ 9).u256
 
-proc processTransactions*(vmState: BaseVMState; header: BlockHeader; transactions: seq[Transaction]): Result[void, string]
-    {.gcsafe, raises: [CatchableError].} =
+proc processTransactions*(vmState: BaseVMState; header: BlockHeader; transactions: seq[Transaction]): Result[void, string] {.gcsafe, raises: [CatchableError].} =
   vmState.receipts = newSeq[Receipt](transactions.len)
   vmState.cumulativeGasUsed = 0
   for txIndex, tx in transactions:
@@ -58,8 +57,7 @@ proc procBlkPreamble(vmState: BaseVMState; header: BlockHeader; body: BlockBody)
   #     db.applyDAOHardFork()
 
   if body.transactions.calcTxRoot != header.txRoot:
-    debug "Mismatched txRoot",
-      blockNumber = header.blockNumber
+    debug "Mismatched txRoot", blockNumber = header.blockNumber
     return false
 
   if header.txRoot != EMPTY_ROOT_HASH:

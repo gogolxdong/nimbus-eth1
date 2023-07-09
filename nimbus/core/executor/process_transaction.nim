@@ -1,13 +1,3 @@
-# Nimbus
-# Copyright (c) 2018-2023 Status Research & Development GmbH
-# Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or
-#    http://www.apache.org/licenses/LICENSE-2.0)
-#  * MIT license ([LICENSE-MIT](LICENSE-MIT) or
-#    http://opensource.org/licenses/MIT)
-# at your option. This file may not be copied, modified, or distributed except
-# according to those terms.
-
 {.push raises: [].}
 
 import
@@ -23,26 +13,11 @@ import
   chronos, chronicles,
   stew/results
 
-# ------------------------------------------------------------------------------
-# Private functions
-# ------------------------------------------------------------------------------
-
 proc eip1559BaseFee(header: BlockHeader; fork: EVMFork): UInt256 =
-  ## Actually, `baseFee` should be 0 for pre-London headers already. But this
-  ## function just plays safe. In particular, the `test_general_state_json.nim`
-  ## module modifies this block header `baseFee` field unconditionally :(.
   if FkLondon <= fork:
     result = header.baseFee
 
-proc commitOrRollbackDependingOnGasUsed(
-    vmState: BaseVMState, accTx: SavePoint,
-    header: BlockHeader, tx: Transaction,
-    gasBurned: GasInt, priorityFee: GasInt):
-    Result[GasInt, string] {.raises: [].} =
-  # Make sure that the tx does not exceed the maximum cumulative limit as
-  # set in the block header. Again, the eip-1559 reference does not mention
-  # an early stop. It would rather detect differing values for the  block
-  # header `gasUsed` and the `vmState.cumulativeGasUsed` at a later stage.
+proc commitOrRollbackDependingOnGasUsed(vmState: BaseVMState, accTx: SavePoint,header: BlockHeader, tx: Transaction,gasBurned: GasInt, priorityFee: GasInt): Result[GasInt, string] {.raises: [].} =
   if header.gasLimit < vmState.cumulativeGasUsed + gasBurned:
     try:
       vmState.stateDB.rollback(accTx)
@@ -51,13 +26,10 @@ proc commitOrRollbackDependingOnGasUsed(
     except ValueError as ex:
       return err(ex.msg)
   else:
-    # Accept transaction and collect mining fee.
     vmState.stateDB.commit(accTx)
     vmState.stateDB.addBalance(vmState.coinbase(), gasBurned.u256 * priorityFee.u256)
     vmState.cumulativeGasUsed += gasBurned
 
-    # Return remaining gas to the block gas counter so it is
-    # available for the next transaction.
     vmState.gasPool += tx.gasLimit - gasBurned
     return ok(gasBurned)
 

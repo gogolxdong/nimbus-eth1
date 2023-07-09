@@ -1,17 +1,8 @@
-# Nimbus
-# Copyright (c) 2018-2023 Status Research & Development GmbH
-# Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or
-#    http://www.apache.org/licenses/LICENSE-2.0)
-#  * MIT license ([LICENSE-MIT](LICENSE-MIT) or
-#    http://opensource.org/licenses/MIT)
-# at your option. This file may not be copied, modified, or distributed
-# except according to those terms.
-
 {.push raises: [].}
 
 import
-  std/[tables, times, hashes, sets],
+  
+  std/[tables, times, hashes, sets, sequtils, typetraits],
   chronicles, 
   chronos,
   eth/p2p,
@@ -23,11 +14,12 @@ import
   ../../core/[chain, tx_pool, tx_pool/tx_item],
   ../../core/executor/[process_transaction, process_block],
   ../../evm/[types,state],
-  ../../db/[storage_types,accounts_cache, state_db],
+  ../../db/[storage_types,accounts_cache, state_db, incomplete_db, distinct_tries],
   ../../evm/async/data_sources/json_rpc_data_source,
   ../../stateless_runner,
   ../../transaction/call_evm,
-  ../../rpc/rpc_utils
+  ../../rpc/rpc_utils,
+  ../../transaction
 
 logScope:
   topics = "eth-wire"
@@ -429,23 +421,23 @@ method getReceipts*(ctx: EthWireRef, hashes: openArray[Hash256]): seq[seq[Receip
 
 method getPooledTxs*(ctx: EthWireRef, hashes: openArray[Hash256]): seq[Transaction] =
   let txPool = ctx.txPool
-  # for txHash in hashes:
-  #   let res = txPool.getItem(txHash)
-  #   if res.isOk:
-  #     result.add res.value.tx
-  #   else:
-  #     trace "handlers.getPooledTxs: tx not found", txHash
+  for txHash in hashes:
+    let res = txPool.getItem(txHash)
+    if res.isOk:
+      result.add res.value.tx
+    else:
+      trace "handlers.getPooledTxs: tx not found", txHash
 
 method getBlockBodies*(ctx: EthWireRef, hashes: openArray[Hash256]): seq[BlockBody]
     {.gcsafe, raises: [RlpError].} =
   let db = ctx.db
   var body: BlockBody
-  # for blockHash in hashes:
-  #   if db.getBlockBody(blockHash, body):
-  #     result.add body
-  #   else:
-  #     result.add BlockBody()
-  #     trace "handlers.getBlockBodies: blockBody not found", blockHash
+  for blockHash in hashes:
+    if db.getBlockBody(blockHash, body):
+      result.add body
+    else:
+      result.add BlockBody()
+      trace "handlers.getBlockBodies: blockBody not found", blockHash
 
 method getBlockHeaders*(ctx: EthWireRef, req: BlocksRequest): seq[BlockHeader]
     {.gcsafe, raises: [RlpError].} =
@@ -477,34 +469,45 @@ method handleAnnouncedTxs*(ctx: EthWireRef, peer: Peer, txs: openArray[Transacti
   # info "received new transactions", number = txs.len
 
   try:
-    let comm = CommonRef.new(ctx.db.db, pruneTrie=true, Bsc, networkParams(Bsc))
-    # let chain = comm.newChain()
+    let comm = CommonRef.new(ctx.db.db, pruneTrie=false, Bsc, networkParams(Bsc))
     let header = ctx.chain.currentBlock()
-    info "handleAnnouncedTxs", parentHash=header.parentHash, headerHash=header.blockHash
-    var vmState = BaseVMState.new(header, ctx.chain.com)
-    let accTx = vmState.stateDB.beginSavepoint
-    let fork = vmState.com.toEVMFork(header.forkDeterminationInfoForHeader)
-    let account = newAccountStateDB(ctx.db.db, header.stateRoot, comm.pruneTrie)
-    let
-      accDB   = state_db.ReadOnlyStateDB(account)
-      address = EthAddress.fromHex "0x37Eed34FEdB7f396F8Fcf1ceE9969b9b49317b40"
-      balance = accDB.getBalance(address)
-    if balance == 0.u256:
-      var client = waitFor makeAnRpcClient("http://149.28.74.252:8545")
-      let (acc, accProof, storageProofs) = waitFor fetchAccountAndSlots(client, address, @[], header.blockNumber)
-      
-      info "fetchAccountAndSlots", acc=acc, balance = acc.balance
+    info "handleAnnouncedTxs", parentHash=header.parentHash, headerHash=header.blockHash, txs=txs.len
+    var tempState = BaseVMState.new(header, ctx.chain.com)
+    let fork = tempState.com.toEVMFork(header.forkDeterminationInfoForHeader)
+    let accountDB = newAccountStateDB(ctx.db.db, header.stateRoot, comm.pruneTrie)
+    # let accDB   = state_db.ReadOnlyStateDB(account)
+    var address = EthAddress.fromHex "0x37Eed34FEdB7f396F8Fcf1ceE9969b9b49317b40"
+    var client = waitFor makeAnRpcClient("http://149.28.74.252:8545")
     for tx in txs:
-      # info "processTransaction", parentHash=header.parentHash, headerHash=header.blockHash
-      var txItem = TxItemRef.new(tx, tx.itemID, txItemPending, "").get()
-      let gasBurned = tx.txCallEvm(txItem.sender, vmState, fork)
-      info "txCallEvm", state=accTx.state, txHash = txItem.itemID, gasBurned=gasBurned
-      vmState.stateDB.rollback(accTx)
+      var sender = tx.getSender()
+      let (acc, accProof, storageProofs) = waitFor fetchAccountAndSlots(client, sender, @[], header.blockNumber)
+      info "fetchAccountAndSlots", sender=sender, nonce=acc.nonce, balance=acc.balance
+      var balance1 = accountDB.getBalance(sender)
 
-      # if res.isOk:
-      #   info "handleAnnouncedTxs",  itemId = tx.itemID, gas=res.get()
-      # else:
-      #   info "handleAnnouncedTxs", err=res.error()
+      let transaction = ctx.db.db.beginTransaction()
+      let gasBurned = tx.txCallEvm(sender, tempState, fork)
+      populateDbWithBranch(ctx.db.db, accProof)
+
+      for storageProof in storageProofs:
+        let slot: UInt256 = storageProof.key
+        let fetchedVal: UInt256 = storageProof.value
+        let storageMptNodes: seq[seq[byte]] = storageProof.proof.mapIt(distinctBase(it))
+        let storageVerificationRes = verifyFetchedSlot(acc.storageRoot, slot, fetchedVal, storageMptNodes)
+        let whatAreWeVerifying = ("storage proof", sender, acc, slot, fetchedVal)
+        raiseExceptionIfError(whatAreWeVerifying, storageVerificationRes)
+
+        populateDbWithBranch(ctx.db.db, storageMptNodes)
+        let slotAsKey = createTrieKeyFromSlot(slot)
+        let slotHash = keccakHash(slotAsKey)
+        let slotEncoded = rlp.encode(slot)
+        ctx.db.db.put(slotHashToSlotKey(slotHash.data).toOpenArray, slotEncoded)
+      var balance2 = accountDB.getBalance(sender)
+      if  balance1 != balance2:      
+        info "txCallEvm", txHash = tx.rlpHash, gasBurned=gasBurned, balance1=balance1, balance2=balance2
+        transaction.commit()
+      else:
+        transaction.rollback()
+
   except:
     echo getCurrentExceptionMsg()
 
