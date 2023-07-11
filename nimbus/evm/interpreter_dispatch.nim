@@ -180,8 +180,7 @@ proc afterExec(c: Computation)
 # Public functions
 # ------------------------------------------------------------------------------
 
-proc executeOpcodes*(c: Computation, shouldPrepareTracer: bool = true)
-    {.gcsafe, raises: [CatchableError].} =
+proc executeOpcodes*(c: Computation, shouldPrepareTracer: bool = true) {.gcsafe, raises: [CatchableError].} =
   let fork = c.fork
 
   block:

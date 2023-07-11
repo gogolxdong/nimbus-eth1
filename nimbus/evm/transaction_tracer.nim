@@ -147,8 +147,7 @@ proc traceOpCodeEnded*(tracer: var TransactionTracer, c: Computation, op: Op, la
       for key in tracer.storage(c.msg.depth):
         let value = stateDB.getStorage(c.msg.contractAddress, key)
         if TracerFlags.GethCompatibility in tracer.flags:
-          storage["0x" & key.dumpHex.stripLeadingZeros] =
-            %("0x" & value.dumpHex.stripLeadingZeros)
+          storage["0x" & key.dumpHex.stripLeadingZeros] = %("0x" & value.dumpHex.stripLeadingZeros)
         else:
           storage[key.dumpHex] = %(value.dumpHex)
       j["storage"] = storage

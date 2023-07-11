@@ -142,6 +142,7 @@ proc getStorageRoot*(db: AccountStateDB, address: EthAddress): Hash256 =
 proc setStorage*(db: AccountStateDB,
                  address: EthAddress,
                  slot: UInt256, value: UInt256) =
+  info "setStorage", address=address
   var account = db.getAccount(address)
   var accountTrie = getStorageTrie(db, account)
   let slotAsKey = createTrieKeyFromSlot slot
@@ -203,8 +204,7 @@ proc incNonce*(db: AccountStateDB, address: EthAddress) {.inline.} =
 
 proc setCode*(db: AccountStateDB, address: EthAddress, code: openArray[byte]) =
   var account = db.getAccount(address)
-  # TODO: implement JournalDB to store code and storage
-  # also use JournalDB to revert state trie
+  info "setCode", address=address
 
   let
     newCodeHash = keccakHash(code)

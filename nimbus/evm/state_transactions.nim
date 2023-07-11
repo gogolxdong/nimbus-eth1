@@ -59,7 +59,6 @@ proc postExecComputation(c: Computation) =
   c.vmState.status = c.isSuccess
 
 proc execComputation*(c: Computation) {.gcsafe, raises: [CatchableError].} =
-  info "execComputation"
   c.preExecComputation()
   c.execCallOrCreate()
   c.postExecComputation()

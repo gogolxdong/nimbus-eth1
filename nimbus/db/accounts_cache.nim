@@ -302,6 +302,7 @@ proc persistMode(acc: RefAccount): PersistMode =
       result = Remove
 
 proc persistCode(acc: RefAccount, db: TrieDatabaseRef) =
+  info "persistCode", acc = acc.account
   if acc.code.len != 0:
     when defined(geth):
       db.put(acc.account.codeHash.data, acc.code)
@@ -309,9 +310,8 @@ proc persistCode(acc: RefAccount, db: TrieDatabaseRef) =
       db.put(contractHashKey(acc.account.codeHash).toOpenArray, acc.code)
 
 proc persistStorage(acc: RefAccount, db: TrieDatabaseRef, clearCache: bool) =
+  info "persistStorage", acc = acc.account
   if acc.overlayStorage.len == 0:
-    # TODO: remove the storage too if we figure out
-    # how to create 'virtual' storage room for each account
     return
 
   if not clearCache and acc.originalStorage.isNil:
@@ -552,22 +552,21 @@ proc persist*(ac: AccountsCache, clearEmptyAccount: bool = false, clearCache: bo
     ac.deleteAccount(address)
 
   for address, acc in ac.savePoint.cache:
-    case acc.persistMode()
+    var persistMode = acc.persistMode()
+    info "persist", persistMode=persistMode, address=address
+    case persistMode
     of Update:
       if CodeChanged in acc.flags:
         acc.persistCode(ac.db)
       if StorageChanged in acc.flags:
-        # storageRoot must be updated first
-        # before persisting account into merkle trie
         acc.persistStorage(ac.db, clearCache)
+      # info "putAccountBytes", address=address
       ac.trie.putAccountBytes address, rlp.encode(acc.account)
     of Remove:
       ac.trie.delAccountBytes address
       if not clearCache:
         cleanAccounts.incl address
     of DoNothing:
-      # dead man tell no tales
-      # remove touched dead account from cache
       if not clearCache and Alive notin acc.flags:
         cleanAccounts.incl address
 
@@ -581,8 +580,8 @@ proc persist*(ac: AccountsCache, clearEmptyAccount: bool = false, clearCache: bo
 
   ac.savePoint.selfDestruct.clear()
 
-  # EIP2929
-  ac.savePoint.accessList.clear()
+  # # EIP2929
+  # ac.savePoint.accessList.clear()
 
   ac.isDirty = false
 

@@ -161,29 +161,21 @@ proc vmExecInit(xp: TxPoolRef): TxPackerStateRef
 
   xp.chain.maxMode = (packItemsMaxGasLimit in xp.pFlags)
 
-  if xp.chain.com.daoForkSupport and
-     xp.chain.com.daoForkBlock.get == xp.chain.head.blockNumber + 1:
+  if xp.chain.com.daoForkSupport and xp.chain.com.daoForkBlock.get == xp.chain.head.blockNumber + 1: 
     xp.chain.vmState.mutateStateDB:
       db.applyDAOHardFork()
 
-  TxPackerStateRef( # return value
+  TxPackerStateRef(
     xp: xp,
     tr: newMemoryDB().initHexaryTrie,
     balance: xp.chain.vmState.readOnlyStateDB.getBalance(xp.chain.feeRecipient))
 
-proc vmExecGrabItem(pst: TxPackerStateRef; item: TxItemRef): Result[bool,void]
-    {.gcsafe,raises: [CatchableError].}  =
-  ## Greedily collect & compact items as long as the accumulated `gasLimit`
-  ## values are below the maximum block size.
+proc vmExecGrabItem(pst: TxPackerStateRef; item: TxItemRef): Result[bool,void] {.gcsafe,raises: [CatchableError].}  =
   let
     xp = pst.xp
     vmState = xp.chain.vmState
 
-  # Verify we have enough gas in gasPool
   if vmState.gasPool < item.tx.gasLimit:
-    # skip this transaction and
-    # continue with next account
-    # if we don't have enough gas
     return ok(false)
   vmState.gasPool -= item.tx.gasLimit
 
@@ -267,8 +259,7 @@ proc vmExecCommit(pst: TxPackerStateRef)
 # ------------------------------------------------------------------------------
 
 proc packerVmExec*(xp: TxPoolRef) {.gcsafe,raises: [CatchableError].} =
-  ## Rebuild `packed` bucket by selection items from the `staged` bucket
-  ## after executing them in the VM.
+  ## Rebuild `packed` bucket by selection items from the `staged` bucket after executing them in the VM.
   let db = xp.chain.com.db
   let dbTx = db.db.beginTransaction
   defer: dbTx.dispose()

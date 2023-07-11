@@ -392,8 +392,7 @@ proc traceOpCodeStarted*(c: Computation, op: Op): int
     {.gcsafe, raises: [CatchableError].} =
   c.vmState.tracer.traceOpCodeStarted(c, op)
 
-proc traceOpCodeEnded*(c: Computation, op: Op, lastIndex: int)
-    {.gcsafe, raises: [CatchableError].} =
+proc traceOpCodeEnded*(c: Computation, op: Op, lastIndex: int) {.gcsafe, raises: [CatchableError].} =
   c.vmState.tracer.traceOpCodeEnded(c, op, lastIndex)
 
 proc traceError*(c: Computation)
