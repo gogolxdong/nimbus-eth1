@@ -654,6 +654,7 @@ proc getNetworkId(conf: NimbusConf): Option[NetworkId] =
   of "goerli" : return some GoerliNet
   of "kovan"  : return some KovanNet
   of "sepolia": return some SepoliaNet
+  of "bsc": return some Bsc
   else:
     try:
       some parseInt(network).NetworkId

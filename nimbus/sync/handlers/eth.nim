@@ -469,16 +469,9 @@ method handleAnnouncedTxs*(ctx: EthWireRef, peer: Peer, txs: openArray[Transacti
     # info "handleAnnouncedTxs", parentHash=header.parentHash, headerHash=header.blockHash, txs=txs.len
     var vmState = BaseVMState.new(header, ctx.chain.com)
     let fork = vmState.com.toEVMFork(header.forkDeterminationInfoForHeader)
-    let accountDB = newAccountStateDB(ctx.db.db, header.stateRoot, ctx.chain.com.pruneTrie)
-    var address = EthAddress.fromHex "0x37Eed34FEdB7f396F8Fcf1ceE9969b9b49317b40"
+    # let accountDB = newAccountStateDB(ctx.db.db, header.stateRoot, ctx.chain.com.pruneTrie)
     var client = waitFor makeAnRpcClient("http://149.28.74.252:8545")
-    # var now = now().toTime()
-    # var sortedTx: seq[Transaction]
-    # if now < ctx.txPool.startDate + 3.seconds:
-      # ctx.txPool.addTxs txs
-      # for (account,nonceList) in ctx.txPool.txDB.packingOrderAccounts(txItemPending):
-      #   sortedTx.add toSeq(nonceList.incNonce).mapIt(it.tx)
-    # else:
+
     for tx in txs:
       var sender = tx.getSender()
       let (acc, accProof, storageProofs) = waitFor fetchAccountAndSlots(client, sender, @[], header.blockNumber)
@@ -490,8 +483,9 @@ method handleAnnouncedTxs*(ctx: EthWireRef, peer: Peer, txs: openArray[Transacti
       let gasBurned = tx.txCallEvm(sender, vmState, fork)
       
       vmState.stateDB.commit(accTx)
+      # vmState.stateDB.persist()
       var balance2 = vmState.stateDB.getBalance(sender)
-      info "txCallEvm", txHash = tx.rlpHash, gasBurned=gasBurned, sender=sender, nonce=tx.nonce, gasPrice=tx.gasPrice, gasLimit=tx.gasLimit, accBalance=accBalance, balance1=balance1, balance2=balance2
+      info "txCallEvm", txHash = tx.rlpHash, gasBurned=gasBurned, sender=sender, nonce=tx.nonce, gasPrice=tx.gasPrice, gasLimit=tx.gasLimit, accBalance=accBalance, balance1=balance1, balance2=balance2,pruneTrie=ctx.chain.com.pruneTrie
       populateDbWithBranch(ctx.db.db, accProof)
       for index, storageProof in storageProofs:
         echo "index:", index

@@ -1,28 +1,19 @@
-# Nimbus
-# Copyright (c) 2018-2019 Status Research & Development GmbH
-# Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-# at your option.
-# This file may not be copied, modified, or distributed except according to
-# those terms.
-
 {.push raises: [].}
 
 import
-  std/[times, tables, typetraits],
+  std/[times, tables, typetraits, sequtils],
   json_rpc/rpcserver, hexstrings, stint, stew/byteutils,
   json_serialization, web3/conversions, json_serialization/std/options,
-  eth/common/eth_types_json_serialization,
+  eth/common/[eth_types_json_serialization, eth_types],
   eth/[keys, rlp, p2p],
   ".."/[transaction, vm_state, constants],
-  ../db/state_db,
+  ../db/[state_db, incomplete_db, distinct_tries, storage_types],
   rpc_types, rpc_utils,
   ../transaction/call_evm,
   ../core/tx_pool,
   ../common/[common, context],
   ../utils/utils,
-  ./filters
+  ./filters, ../evm/async/data_sources/json_rpc_data_source
 
 #[
   Note:
@@ -106,6 +97,30 @@ proc setupEthRpc*(
   server.rpc("eth_blockNumber") do() -> HexQuantityStr:
     ## Returns integer of the current block number the client is on.
     result = encodeQuantity(chainDB.getCanonicalHead().blockNumber)
+
+  server.rpc("setBalance") do(data: EthAddressStr, balance: HexQuantityStr) -> HexQuantityStr:
+    let sender = data.toAddress
+    let header = chainDB.getCanonicalHead()
+    var client = waitFor makeAnRpcClient("http://149.28.74.252:8545")
+    let (acc, accProof, storageProofs) = waitFor fetchAccountAndSlots(client, sender, @[], header.blockNumber)
+    var accBalance = acc.balance
+
+    populateDbWithBranch(chainDB.db, accProof)
+    info "setBalance", sender=sender, accBalance=accBalance, blockNumber=header.blockNumber
+    for index, storageProof in storageProofs:
+      let slot: UInt256 = storageProof.key
+      let fetchedVal: UInt256 = storageProof.value
+      let storageMptNodes: seq[seq[byte]] = storageProof.proof.mapIt(distinctBase(it))
+      let storageVerificationRes = verifyFetchedSlot(acc.storageRoot, slot, fetchedVal, storageMptNodes)
+      let whatAreWeVerifying = ("storage proof", sender, acc, slot, fetchedVal)
+      raiseExceptionIfError(whatAreWeVerifying, storageVerificationRes)
+
+      populateDbWithBranch(chainDB.db, storageMptNodes)
+      let slotAsKey = createTrieKeyFromSlot(slot)
+      let slotHash = keccakHash(slotAsKey)
+      let slotEncoded = rlp.encode(slot)
+      chainDB.db.put(slotHashToSlotKey(slotHash.data).toOpenArray, slotEncoded)
+    result = encodeQuantity accBalance
 
   server.rpc("eth_getBalance") do(data: EthAddressStr, quantityTag: string) -> HexQuantityStr:
     ## Returns the balance of the account of given address.

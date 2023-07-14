@@ -118,8 +118,8 @@ proc consensusTransition(com: CommonRef, fork: HardFork) =
     # com.consensusType = com.config.consensusType
 
 proc setForkId(com: CommonRef, blockZero: BlockHeader) =
-  com.genesisHash = blockZero.blockHash
-  # com.genesisHash = Hash256.fromHex"0D21840ABFF46B96C84B2AC9E10E4F5CDAEB5693CB665DB62A2F3B02D2D57B5B"
+  # com.genesisHash = blockZero.blockHash
+  com.genesisHash = Hash256.fromHex"0D21840ABFF46B96C84B2AC9E10E4F5CDAEB5693CB665DB62A2F3B02D2D57B5B"
   
   let genesisCRC = crc32(0, com.genesisHash.data)
   com.forkIds = calculateForkIds(com.config, genesisCRC)
@@ -197,9 +197,9 @@ proc getTdIfNecessary(com: CommonRef, blockHash: Hash256): Option[DifficultyInt]
 
 proc new*(_: type CommonRef,
           db: TrieDatabaseRef,
-          pruneTrie: bool = true,
-          networkId: NetworkId = Mainnet,
-          params = networkParams(Mainnet)): CommonRef
+          pruneTrie: bool = false,
+          networkId: NetworkId = Bsc,
+          params = networkParams(Bsc)): CommonRef
             {.gcsafe, raises: [CatchableError].} =
 
   ## If genesis data is present, the forkIds will be initialized
@@ -215,8 +215,8 @@ proc new*(_: type CommonRef,
 proc new*(_: type CommonRef,
           db: TrieDatabaseRef,
           config: ChainConfig,
-          pruneTrie: bool = true,
-          networkId: NetworkId = Mainnet): CommonRef
+          pruneTrie: bool = false,
+          networkId: NetworkId = Bsc): CommonRef
             {.gcsafe, raises: [CatchableError].} =
 
   ## There is no genesis data present

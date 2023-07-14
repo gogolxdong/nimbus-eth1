@@ -311,7 +311,7 @@ proc writeContract*(c: Computation)
   # Charge gas and write the code even if the code address is self-destructed.
   # Non-empty code in a newly created, self-destructed account is possible if
   # the init code calls `DELEGATECALL` or `CALLCODE` to other code which uses
-  # `SELFDESTRUCT`.  This shows on Mainnet blocks 6001128..6001204, where the
+  # `SELFDESTRUCT`.  This shows on Bsc blocks 6001128..6001204, where the
   # gas difference matters.  The new code can be called later in the
   # transaction too, before self-destruction wipes the account at the end.
 

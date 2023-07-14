@@ -356,7 +356,7 @@ proc chainConfigForNetwork*(id: NetworkId): ChainConfig =
       eip155Block:         some(2_675_000.toBlockNumber),  # Same as EIP-158
       eip158Block:         some(2_675_000.toBlockNumber),  # 2016-11-22 16:15:44 UTC
       byzantiumBlock:      some(4_370_000.toBlockNumber),  # 2017-10-16 05:22:11 UTC
-      constantinopleBlock: some(7_280_000.toBlockNumber),  # Skipped on Mainnet
+      constantinopleBlock: some(7_280_000.toBlockNumber),  # Skipped on Bsc
       petersburgBlock:     some(7_280_000.toBlockNumber),  # 2019-02-28 19:52:04 UTC
       istanbulBlock:       some(9_069_000.toBlockNumber),  # 2019-12-08 00:25:09 UTC
       muirGlacierBlock:    some(9_200_000.toBlockNumber),  # 2020-01-02 08:30:49 UTC
