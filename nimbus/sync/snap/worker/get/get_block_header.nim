@@ -75,11 +75,7 @@ proc getBlockHeader*(
   return err(GetTooManyHeaders)
 
 
-proc getBlockHeader*(
-    buddy: SnapBuddyRef;
-    hash: Hash256;
-      ): Future[Result[BlockHeader,GetError]]
-      {.async.} =
+proc getBlockHeader*(buddy: SnapBuddyRef; hash: Hash256; ): Future[Result[BlockHeader,GetError]] {.async.} =
   ## Get single block header
   let
     peer = buddy.peer

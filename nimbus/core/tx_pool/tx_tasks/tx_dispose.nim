@@ -94,9 +94,7 @@ proc disposeExpiredItems*(xp: TxPoolRef) {.gcsafe,raises: [KeyError].} =
           break
 
 
-proc disposeItemAndHigherNonces*(xp: TxPoolRef; item: TxItemRef;
-                                 reason, otherReason: TxInfo): int
-    {.gcsafe,raises: [CatchableError].} =
+proc disposeItemAndHigherNonces*(xp: TxPoolRef; item: TxItemRef; reason, otherReason: TxInfo): int {.gcsafe,raises: [CatchableError].} =
   ## Move item and higher nonces per sender to wastebasket.
   if xp.txDB.dispose(item, reason):
     result = 1
@@ -110,8 +108,7 @@ proc disposeItemAndHigherNonces*(xp: TxPoolRef; item: TxItemRef;
           result.inc
 
 
-proc disposeById*(xp: TxPoolRef; itemIDs: openArray[Hash256]; reason: TxInfo)
-    {.gcsafe,raises: [KeyError].}=
+proc disposeById*(xp: TxPoolRef; itemIDs: openArray[Hash256]; reason: TxInfo) {.gcsafe,raises: [KeyError].}=
   ## Dispose items by item ID wihtout checking whether this makes other items
   ## unusable (e.g. with higher nonces for the same sender.)
   for itemID in itemIDs:

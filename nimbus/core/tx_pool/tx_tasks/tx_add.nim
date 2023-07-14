@@ -124,7 +124,7 @@ proc addTx*(xp: TxPoolRef; item: TxItemRef): bool
     item.status =
         if xp.classifyActive(item): txItemStaged
         else:                       txItemPending
-
+    # info "addTx", status=item.status
     # Insert into database
     block:
       let rc = xp.txDB.insert(item)

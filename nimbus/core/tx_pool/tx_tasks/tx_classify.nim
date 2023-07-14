@@ -91,10 +91,8 @@ proc checkTxNonce(xp: TxPoolRef; item: TxItemRef): bool
 # Private function: active tx classifier check helpers
 # ------------------------------------------------------------------------------
 
-proc txNonceActive(xp: TxPoolRef; item: TxItemRef): bool
-    {.gcsafe,raises: [KeyError].} =
-  ## Make sure that nonces appear as a contiuous sequence in `staged` bucket
-  ## probably preceeded in `packed` bucket.
+proc txNonceActive(xp: TxPoolRef; item: TxItemRef): bool {.gcsafe,raises: [KeyError].} =
+  ## Make sure that nonces appear as a contiuous sequence in `staged` bucket probably preceeded in `packed` bucket.
   let rc = xp.txDB.bySender.eq(item.sender)
   if rc.isErr:
     return true
@@ -190,8 +188,7 @@ proc classifyValid*(xp: TxPoolRef; item: TxItemRef): bool
 
   true
 
-proc classifyActive*(xp: TxPoolRef; item: TxItemRef): bool
-    {.gcsafe,raises: [CatchableError].} =
+proc classifyActive*(xp: TxPoolRef; item: TxItemRef): bool {.gcsafe,raises: [CatchableError].} =
   ## Check whether a valid transaction is ready to be held in the
   ## `staged` bucket in which case the function returns `true`.
 
@@ -219,8 +216,7 @@ proc classifyActive*(xp: TxPoolRef; item: TxItemRef): bool
   true
 
 
-proc classifyValidatePacked*(xp: TxPoolRef;
-                             vmState: BaseVMState; item: TxItemRef): bool =
+proc classifyValidatePacked*(xp: TxPoolRef; vmState: BaseVMState; item: TxItemRef): bool =
   ## Verify the argument `item` against the accounts database. This function
   ## is a wrapper around the `verifyTransaction()` call to be used in a similar
   ## fashion as in `asyncProcessTransactionImpl()`.

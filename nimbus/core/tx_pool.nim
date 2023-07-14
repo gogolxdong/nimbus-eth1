@@ -489,8 +489,7 @@ proc maintenanceProcessing(xp: TxPoolRef)
       discard xp.bucketUpdateAll
       xp.pDirtyBuckets = false
 
-proc setHead(xp: TxPoolRef; val: BlockHeader)
-    {.gcsafe,raises: [CatchableError].} =
+proc setHead(xp: TxPoolRef; val: BlockHeader) {.gcsafe,raises: [CatchableError].} =
   ## Update cached block chain insertion point. This will also update the
   ## internally cached `baseFee` (depends on the block chain state.)
   if xp.chain.head != val:
@@ -503,8 +502,7 @@ proc setHead(xp: TxPoolRef; val: BlockHeader)
 # Public constructor/destructor
 # ------------------------------------------------------------------------------
 
-proc new*(T: type TxPoolRef; com: CommonRef; miner: EthAddress): T
-    {.gcsafe,raises: [CatchableError].} =
+proc new*(T: type TxPoolRef; com: CommonRef; miner: EthAddress): T {.gcsafe,raises: [CatchableError].} =
   ## Constructor, returns a new tx-pool descriptor. The `miner` argument is
   ## the fee beneficiary for informational purposes only.
   new result
@@ -516,8 +514,7 @@ proc new*(T: type TxPoolRef; com: CommonRef; miner: EthAddress): T
 
 # core/tx_pool.go(848): func (pool *TxPool) AddLocals(txs []..
 # core/tx_pool.go(864): func (pool *TxPool) AddRemotes(txs []..
-proc add*(xp: TxPoolRef; txs: openArray[Transaction]; info = "")
-    {.gcsafe,raises: [CatchableError].} =
+proc add*(xp: TxPoolRef; txs: openArray[Transaction]; info = "") {.gcsafe,raises: [CatchableError].} =
   ## Add a list of transactions to be processed and added to the buckets
   ## database. It is OK pass an empty list in which case some maintenance
   ## check can be forced.
@@ -532,13 +529,11 @@ proc add*(xp: TxPoolRef; txs: openArray[Transaction]; info = "")
 
 # core/tx_pool.go(854): func (pool *TxPool) AddLocals(txs []..
 # core/tx_pool.go(883): func (pool *TxPool) AddRemotes(txs []..
-proc add*(xp: TxPoolRef; tx: Transaction; info = "")
-    {.gcsafe,raises: [CatchableError].} =
+proc add*(xp: TxPoolRef; tx: Transaction; info = "") {.gcsafe,raises: [CatchableError].} =
   ## Variant of `add()` for a single transaction.
   xp.add(@[tx], info)
 
-proc smartHead*(xp: TxPoolRef; pos: BlockHeader; blindMode = false): bool
-    {.gcsafe,raises: [CatchableError].} =
+proc smartHead*(xp: TxPoolRef; pos: BlockHeader; blindMode = false): bool {.gcsafe,raises: [CatchableError].} =
   ## This function moves the internal head cache (i.e. tx insertion point,
   ## vmState) and ponts it to a now block on the chain.
   ##
@@ -602,8 +597,7 @@ proc dirtyBuckets*(xp: TxPoolRef): bool =
   ## flag is also set.
   xp.pDirtyBuckets
 
-proc ethBlock*(xp: TxPoolRef): EthBlock
-    {.gcsafe,raises: [CatchableError].} =
+proc ethBlock*(xp: TxPoolRef): EthBlock {.gcsafe,raises: [CatchableError].} =
   ## Getter, retrieves a packed block ready for mining and signing depending
   ## on the internally cached block chain head, the txs in the pool and some
   ## tuning parameters. The following block header fields are left

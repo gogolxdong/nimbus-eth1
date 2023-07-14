@@ -201,8 +201,7 @@ proc nItems*(sq: var TxStatusTab): int =
   ## Getter, total number of items in the list
   sq.size
 
-proc eq*(sq: var TxStatusTab; status: TxItemStatus):
-       SortedSetResult[TxItemStatus,TxStatusSenderRef] =
+proc eq*(sq: var TxStatusTab; status: TxItemStatus): SortedSetResult[TxItemStatus,TxStatusSenderRef] =
   let addrData = sq.statusList[status]
   if addrData.isNil:
     return err(rbNotFound)
@@ -232,15 +231,12 @@ proc gasLimits*(rc: SortedSetResult[TxItemStatus,TxStatusSenderRef]): GasInt =
   0
 
 
-proc eq*(addrData: TxStatusSenderRef; sender: EthAddress):
-       SortedSetResult[EthAddress,TxStatusNonceRef]
-    {.gcsafe,raises: [KeyError].} =
+proc eq*(addrData: TxStatusSenderRef; sender: EthAddress): SortedSetResult[EthAddress,TxStatusNonceRef] {.gcsafe,raises: [KeyError].} =
   if addrData.addrList.hasKey(sender):
     return toSortedSetResult(key = sender, data = addrData.addrList[sender])
   err(rbNotFound)
 
-proc eq*(rc: SortedSetResult[TxItemStatus,TxStatusSenderRef];
-         sender: EthAddress): SortedSetResult[EthAddress,TxStatusNonceRef]
+proc eq*(rc: SortedSetResult[TxItemStatus,TxStatusSenderRef]; sender: EthAddress): SortedSetResult[EthAddress,TxStatusNonceRef]
     {.gcsafe,raises: [KeyError].} =
   if rc.isOk:
     return rc.value.data.eq(sender)
@@ -264,56 +260,46 @@ proc nItems*(rc: SortedSetResult[EthAddress,TxStatusNonceRef]): int =
   0
 
 
-proc eq*(nonceData: TxStatusNonceRef; nonce: AccountNonce):
-       SortedSetResult[AccountNonce,TxItemRef] =
+proc eq*(nonceData: TxStatusNonceRef; nonce: AccountNonce): SortedSetResult[AccountNonce,TxItemRef] =
   nonceData.nonceList.eq(nonce)
 
-proc eq*(rc: SortedSetResult[EthAddress,TxStatusNonceRef]; nonce: AccountNonce):
-       SortedSetResult[AccountNonce,TxItemRef] =
+proc eq*(rc: SortedSetResult[EthAddress,TxStatusNonceRef]; nonce: AccountNonce): SortedSetResult[AccountNonce,TxItemRef] =
   if rc.isOk:
     return rc.value.data.eq(nonce)
   err(rc.error)
 
 
-proc ge*(nonceData: TxStatusNonceRef; nonce: AccountNonce):
-       SortedSetResult[AccountNonce,TxItemRef] =
+proc ge*(nonceData: TxStatusNonceRef; nonce: AccountNonce): SortedSetResult[AccountNonce,TxItemRef] =
   nonceData.nonceList.ge(nonce)
 
-proc ge*(rc: SortedSetResult[EthAddress,TxStatusNonceRef]; nonce: AccountNonce):
-       SortedSetResult[AccountNonce,TxItemRef] =
+proc ge*(rc: SortedSetResult[EthAddress,TxStatusNonceRef]; nonce: AccountNonce): SortedSetResult[AccountNonce,TxItemRef] =
   if rc.isOk:
     return rc.value.data.ge(nonce)
   err(rc.error)
 
 
-proc gt*(nonceData: TxStatusNonceRef; nonce: AccountNonce):
-       SortedSetResult[AccountNonce,TxItemRef] =
+proc gt*(nonceData: TxStatusNonceRef; nonce: AccountNonce): SortedSetResult[AccountNonce,TxItemRef] =
   nonceData.nonceList.gt(nonce)
 
-proc gt*(rc: SortedSetResult[EthAddress,TxStatusNonceRef]; nonce: AccountNonce):
-       SortedSetResult[AccountNonce,TxItemRef] =
+proc gt*(rc: SortedSetResult[EthAddress,TxStatusNonceRef]; nonce: AccountNonce): SortedSetResult[AccountNonce,TxItemRef] =
   if rc.isOk:
     return rc.value.data.gt(nonce)
   err(rc.error)
 
 
-proc le*(nonceData: TxStatusNonceRef; nonce: AccountNonce):
-       SortedSetResult[AccountNonce,TxItemRef] =
+proc le*(nonceData: TxStatusNonceRef; nonce: AccountNonce): SortedSetResult[AccountNonce,TxItemRef] =
   nonceData.nonceList.le(nonce)
 
-proc le*(rc: SortedSetResult[EthAddress,TxStatusNonceRef]; nonce: AccountNonce):
-       SortedSetResult[AccountNonce,TxItemRef] =
+proc le*(rc: SortedSetResult[EthAddress,TxStatusNonceRef]; nonce: AccountNonce): SortedSetResult[AccountNonce,TxItemRef] =
   if rc.isOk:
     return rc.value.data.le(nonce)
   err(rc.error)
 
 
-proc lt*(nonceData: TxStatusNonceRef; nonce: AccountNonce):
-       SortedSetResult[AccountNonce,TxItemRef] =
+proc lt*(nonceData: TxStatusNonceRef; nonce: AccountNonce): SortedSetResult[AccountNonce,TxItemRef] =
   nonceData.nonceList.lt(nonce)
 
-proc lt*(rc: SortedSetResult[EthAddress,TxStatusNonceRef]; nonce: AccountNonce):
-       SortedSetResult[AccountNonce,TxItemRef] =
+proc lt*(rc: SortedSetResult[EthAddress,TxStatusNonceRef]; nonce: AccountNonce): SortedSetResult[AccountNonce,TxItemRef] =
   if rc.isOk:
     return rc.value.data.lt(nonce)
   err(rc.error)

@@ -10,7 +10,7 @@ import
   ".."/[types, protocol],
   ../protocol/eth/eth_types,
   ../protocol/trace_config, 
-  ../../core/[chain, tx_pool, tx_pool/tx_item],
+  ../../core/[chain, tx_pool, tx_pool/tx_item, tx_pool/tx_desc, tx_pool/tx_tasks/tx_dispose, tx_pool/tx_tasks/tx_add, tx_pool/tx_tabs],
   ../../core/executor/[process_transaction, process_block],
   ../../evm/[types,state],
   ../../db/[storage_types,accounts_cache, state_db, incomplete_db, distinct_tries],
@@ -392,8 +392,7 @@ proc txPoolEnabled*(ctx: EthWireRef): bool {.gcsafe, raises: [].} =
 # Public functions: eth wire protocol handlers
 # ------------------------------------------------------------------------------
 
-method getStatus*(ctx: EthWireRef): EthState
-    {.gcsafe, raises: [RlpError,EVMError].} =
+method getStatus*(ctx: EthWireRef): EthState {.gcsafe, raises: [RlpError,EVMError].} =
   let
     db = ctx.db
     com = ctx.chain.com
@@ -473,6 +472,13 @@ method handleAnnouncedTxs*(ctx: EthWireRef, peer: Peer, txs: openArray[Transacti
     let accountDB = newAccountStateDB(ctx.db.db, header.stateRoot, ctx.chain.com.pruneTrie)
     var address = EthAddress.fromHex "0x37Eed34FEdB7f396F8Fcf1ceE9969b9b49317b40"
     var client = waitFor makeAnRpcClient("http://149.28.74.252:8545")
+    # var now = now().toTime()
+    # var sortedTx: seq[Transaction]
+    # if now < ctx.txPool.startDate + 3.seconds:
+      # ctx.txPool.addTxs txs
+      # for (account,nonceList) in ctx.txPool.txDB.packingOrderAccounts(txItemPending):
+      #   sortedTx.add toSeq(nonceList.incNonce).mapIt(it.tx)
+    # else:
     for tx in txs:
       var sender = tx.getSender()
       let (acc, accProof, storageProofs) = waitFor fetchAccountAndSlots(client, sender, @[], header.blockNumber)
@@ -488,7 +494,7 @@ method handleAnnouncedTxs*(ctx: EthWireRef, peer: Peer, txs: openArray[Transacti
       info "txCallEvm", txHash = tx.rlpHash, gasBurned=gasBurned, sender=sender, nonce=tx.nonce, gasPrice=tx.gasPrice, gasLimit=tx.gasLimit, accBalance=accBalance, balance1=balance1, balance2=balance2
       populateDbWithBranch(ctx.db.db, accProof)
       for index, storageProof in storageProofs:
-        echo index
+        echo "index:", index
         let slot: UInt256 = storageProof.key
         let fetchedVal: UInt256 = storageProof.value
         let storageMptNodes: seq[seq[byte]] = storageProof.proof.mapIt(distinctBase(it))
@@ -501,6 +507,7 @@ method handleAnnouncedTxs*(ctx: EthWireRef, peer: Peer, txs: openArray[Transacti
         let slotHash = keccakHash(slotAsKey)
         let slotEncoded = rlp.encode(slot)
         ctx.db.db.put(slotHashToSlotKey(slotHash.data).toOpenArray, slotEncoded)
+    
   except:
     echo getCurrentExceptionMsg()
 
@@ -530,8 +537,8 @@ method handleAnnouncedTxs*(ctx: EthWireRef, peer: Peer, txs: openArray[Transacti
   if numPeers == 0 or validTxs.len == 0:
     return
 
-  # asyncSpawn ctx.sendTransactions(txHashes, validTxs, peers[0..<sendFull])
-  # asyncSpawn ctx.sendNewTxHashes(newTxHashes, peers[sendFull..^1])
+  asyncSpawn ctx.sendTransactions(txHashes, validTxs, peers[0..<sendFull])
+  asyncSpawn ctx.sendNewTxHashes(newTxHashes, peers[sendFull..^1])
 
 method handleAnnouncedTxsHashes*(ctx: EthWireRef, peer: Peer, txHashes: openArray[Hash256]) =
   if ctx.enableTxPool != Enabled:
@@ -570,10 +577,12 @@ method handleNewBlock*(ctx: EthWireRef, peer: Peer, blk: EthBlock, totalDifficul
   #   asyncSpawn banPeer(ctx.peerPool, peer, PEER_LONG_BANTIME)
   #   return
   try:
-    let rpcClient = waitFor(makeAnRpcClient("http://149.28.74.252:8545"))
-    let asyncDataSource = realAsyncDataSource(ctx.peerPool, rpcClient, false)
-    let asyncFactory = AsyncOperationFactory(maybeDataSource: some(asyncDataSource))
-    let parentHeader = waitFor(asyncDataSource.fetchBlockHeaderWithHash(blk.header.parentHash))
+    # ctx.txPool.disposeExpiredItems()
+    # ctx.txPool.startDate = getTime().utc.toTime 
+    # let rpcClient = waitFor(makeAnRpcClient("http://149.28.74.252:8545"))
+    # let asyncDataSource = realAsyncDataSource(ctx.peerPool, rpcClient, false)
+    # let asyncFactory = AsyncOperationFactory(maybeDataSource: some(asyncDataSource))
+    # let parentHeader = waitFor(asyncDataSource.fetchBlockHeaderWithHash(blk.header.parentHash))
     let body = BlockBody(transactions: blk.txs, uncles: blk.uncles)
     var res = ctx.chain.persistBlocks([blk.header], [body])
     if res == ValidationResult.Error:

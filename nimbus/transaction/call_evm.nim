@@ -86,9 +86,7 @@ proc rpcCallEvm*(call: RpcCallData, header: BlockHeader, com: CommonRef): CallRe
 
   runComputation(params)
 
-proc rpcEstimateGas*(cd: RpcCallData, header: BlockHeader, com: CommonRef, gasCap: GasInt): GasInt
-    {.gcsafe, raises: [CatchableError].} =
-  # Binary search the gas requirement, as it may be higher than the amount used
+proc rpcEstimateGas*(cd: RpcCallData, header: BlockHeader, com: CommonRef, gasCap: GasInt): GasInt {.gcsafe, raises: [CatchableError].} =
   let topHeader = BlockHeader(
     parentHash: header.blockHash,
     timestamp:  getTime().utc.toTime,

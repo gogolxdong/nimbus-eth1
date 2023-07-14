@@ -1,4 +1,5 @@
 import
+  chronicles,
   std/tables,
   eth/[common, rlp, eip1559],
   eth/trie/[db, trie_defs],
@@ -39,29 +40,6 @@ proc toGenesisHeader*(
     sdb.setAccount(address, newAccount(account.nonce, account.balance))
     sdb.setCode(address, account.code)
 
-    # Kludge:
-    #
-    #   With the pruning persistent version, the initial/trivial key-value
-    #   pair `(emptyRlpHash.data,emptyRlp)` will have been deleted after
-    #   adding a non-trivial key-value pair in one of the above functions.
-    #   This happens in the function/template
-    #
-    #      eth/trie/db.del() called by
-    #      eth/trie/hexary.prune() invoked by
-    #      eth/trie/hexary.origWithNewValue() invoked by
-    #      eth/trie/hexary.mergeAt() called by
-    #      eth/trie/hexary.put()
-    #
-    #   if the database contains the trivial key-value pair, only.
-    #   Unfortunately, the *trie* is now empty but the previous root hash
-    #   is re-used. This leads to an assert exception in any subsequent
-    #   invocation of `eth/trie/hexary.put()`.
-    #
-    # See also https://github.com/status-im/nim-eth/issues/9 where other,
-    # probably related debilities are discussed.
-    #
-    # This kludge also fixes the initial crash described in
-    # https://github.com/status-im/nimbus-eth1/issues/932.
     if sdb.pruneTrie and 0 < account.storage.len:
       sdb.db.put(emptyRlpHash.data, emptyRlp) # <-- kludge
 
@@ -82,11 +60,11 @@ proc toGenesisHeader*(
     receiptRoot: EMPTY_ROOT_HASH,
     ommersHash: EMPTY_UNCLE_HASH
   )
-
-  # if g.baseFeePerGas.isSome:
-  #   result.baseFee = g.baseFeePerGas.get()
-  # elif fork >= London:
-  #   result.baseFee = EIP1559_INITIAL_BASE_FEE.u256
+  info "toGenesisHeader", header=result
+  if g.baseFeePerGas.isSome:
+    result.baseFee = g.baseFeePerGas.get()
+  elif fork >= London:
+    result.baseFee = EIP1559_INITIAL_BASE_FEE.u256
 
   if g.gasLimit.isZero:
     result.gasLimit = GENESIS_GAS_LIMIT

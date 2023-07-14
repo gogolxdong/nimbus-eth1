@@ -39,9 +39,7 @@ logScope:
 # Public functions
 # ------------------------------------------------------------------------------
 
-proc bucketItemsReassignPending*(xp: TxPoolRef; labelFrom: TxItemStatus;
-                                 account: EthAddress; nonceFrom = minNonce)
-    {.gcsafe,raises: [CatchableError].} =
+proc bucketItemsReassignPending*(xp: TxPoolRef; labelFrom: TxItemStatus; account: EthAddress; nonceFrom = minNonce) {.gcsafe,raises: [CatchableError].} =
   ## Move all items in bucket `lblFrom` with nonces not less than `nonceFrom`
   ## to the `pending` bucket
   let rc = xp.txDB.byStatus.eq(labelFrom).eq(account)
@@ -50,14 +48,12 @@ proc bucketItemsReassignPending*(xp: TxPoolRef; labelFrom: TxItemStatus;
       discard xp.txDB.reassign(item, txItemPending)
 
 
-proc bucketItemsReassignPending*(xp: TxPoolRef; item: TxItemRef)
-    {.gcsafe,raises: [CatchableError].} =
+proc bucketItemsReassignPending*(xp: TxPoolRef; item: TxItemRef) {.gcsafe,raises: [CatchableError].} =
   ## Variant of `bucketItemsReassignPending()`
   xp.bucketItemsReassignPending(item.status, item.sender, item.tx.nonce)
 
 
-proc bucketUpdateAll*(xp: TxPoolRef): bool
-    {.discardable,gcsafe,raises: [CatchableError].} =
+proc bucketUpdateAll*(xp: TxPoolRef): bool {.discardable,gcsafe,raises: [CatchableError].} =
   ## Update all buckets. The function returns `true` if some items were added
   ## to the `staged` bucket.
 
@@ -75,12 +71,8 @@ proc bucketUpdateAll*(xp: TxPoolRef): bool
         if rc.isOk:
           let nextItem = rc.value.data
           if item.tx.nonce + 1 < nextItem.tx.nonce:
-            discard xp.disposeItemAndHigherNonces(
-              item, txInfoErrNonceGap, txInfoErrImpliedNonceGap)
+            discard xp.disposeItemAndHigherNonces(item, txInfoErrNonceGap, txInfoErrImpliedNonceGap)
       else:
-        # For failed txs, make sure that the account state has not
-        # changed. Assuming that this list is complete, then there are
-        # no other account affected.
         let rc = xp.txDB.bySender.eq(item.sender).sub.ge(minNonce)
         if rc.isOk:
           let firstItem = rc.value.data
@@ -88,7 +80,6 @@ proc bucketUpdateAll*(xp: TxPoolRef): bool
             discard xp.disposeItemAndHigherNonces(
               firstItem, txInfoErrNonceGap, txInfoErrImpliedNonceGap)
 
-    # Clean up that queue
     xp.pDoubleCheckFlush
 
 
@@ -158,8 +149,7 @@ proc bucketUpdateAll*(xp: TxPoolRef): bool
 
 # ---------------------------
 
-proc bucketFlushPacked*(xp: TxPoolRef)
-    {.gcsafe,raises: [CatchableError].} =
+proc bucketFlushPacked*(xp: TxPoolRef) {.gcsafe,raises: [CatchableError].} =
   ## Move all items from the `packed` bucket to the `pending` bucket
   for (_,nonceList) in xp.txDB.decAccount(txItemPacked):
     for item in nonceList.incNonce:

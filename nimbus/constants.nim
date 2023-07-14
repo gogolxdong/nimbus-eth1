@@ -29,8 +29,8 @@ const
   MAX_UNCLES* =                             2
 
   GENESIS_BLOCK_NUMBER* =                   0.toBlockNumber
-  GENESIS_DIFFICULTY* =                     131_072.u256
-  GENESIS_GAS_LIMIT* =                      3_141_592
+  GENESIS_DIFFICULTY* =                     1.u256
+  GENESIS_GAS_LIMIT* =                      0x2625a00
   GENESIS_PARENT_HASH* =                    ZERO_HASH256
   GENESIS_COINBASE* =                       ZERO_ADDRESS
   GENESIS_NONCE* =                          "\x00\x00\x00\x00\x00\x00\x00B"

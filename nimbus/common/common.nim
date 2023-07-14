@@ -118,8 +118,8 @@ proc consensusTransition(com: CommonRef, fork: HardFork) =
     # com.consensusType = com.config.consensusType
 
 proc setForkId(com: CommonRef, blockZero: BlockHeader) =
-  # com.genesisHash = blockZero.blockHash
-  com.genesisHash = Hash256.fromHex"0D21840ABFF46B96C84B2AC9E10E4F5CDAEB5693CB665DB62A2F3B02D2D57B5B"
+  com.genesisHash = blockZero.blockHash
+  # com.genesisHash = Hash256.fromHex"0D21840ABFF46B96C84B2AC9E10E4F5CDAEB5693CB665DB62A2F3B02D2D57B5B"
   
   let genesisCRC = crc32(0, com.genesisHash.data)
   com.forkIds = calculateForkIds(com.config, genesisCRC)
@@ -361,9 +361,12 @@ proc consensus*(com: CommonRef, header: BlockHeader): ConsensusType
 
   return com.config.consensusType
 
-proc initializeEmptyDb*(com: CommonRef)
-    {.gcsafe, raises: [CatchableError].} =
+proc initializeEmptyDb*(com: CommonRef) {.gcsafe, raises: [CatchableError].} =
   let trieDB = com.db.db
+  var hashKey = canonicalHeadHashKey()
+  var encode = rlp.encode(com.genesisHash)
+  info "initializeEmptyDb", encode=encode, genesisHash = com.genesisHash
+
   if canonicalHeadHashKey().toOpenArray notin trieDB:
     trace "Writing genesis to DB"
     doAssert(com.genesisHeader.blockNumber.isZero, "can't commit genesis block with number > 0")

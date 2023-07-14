@@ -105,7 +105,7 @@ const
     ## Maximum amount of time transactions can be held in the database\
     ## unless they are packed already for a block. This default is chosen\
     ## as found in core/tx_pool.go(184) of the geth implementation.
-    initDuration(hours = 3)
+    initDuration(seconds = 3)
 
   txPriceBump = ##\
     ## Minimum price bump percentage to replace an already existing\
@@ -187,6 +187,8 @@ proc txDB*(xp: TxPoolRef): TxTabsRef =
 # ------------------------------------------------------------------------------
 # Public functions, setters
 # ------------------------------------------------------------------------------
+proc `startDate=`*(xp: TxPoolRef; time: Time) =
+  xp.startDate = time
 
 proc `pDirtyBuckets=`*(xp: TxPoolRef; val: bool) =
   ## Setter

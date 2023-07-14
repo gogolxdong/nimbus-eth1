@@ -126,17 +126,14 @@ proc insertBlockWithoutSetHead*(c: ChainRef, header: BlockHeader,
   if result == ValidationResult.OK:
     c.db.persistHeaderToDbWithoutSetHead(header, c.com.startOfHistory)
 
-proc setCanonical*(c: ChainRef, header: BlockHeader): ValidationResult
-                                {.gcsafe, raises: [CatchableError].} =
-
+proc setCanonical*(c: ChainRef, header: BlockHeader): ValidationResult {.gcsafe, raises: [CatchableError].} =
   if header.parentHash == Hash256():
     discard c.db.setHead(header.blockHash)
     return ValidationResult.OK
 
   var body: BlockBody
   if not c.db.getBlockBody(header, body):
-    debug "Failed to get BlockBody",
-      hash = header.blockHash
+    debug "Failed to get BlockBody", hash = header.blockHash
     return ValidationResult.Error
 
   result = c.persistBlocksImpl([header], [body], {NoPersistHeader, NoSaveTxs})
@@ -146,8 +143,7 @@ proc setCanonical*(c: ChainRef, header: BlockHeader): ValidationResult
 proc setCanonical*(c: ChainRef, blockHash: Hash256): ValidationResult {.gcsafe, raises: [CatchableError].} =
   var header: BlockHeader
   if not c.db.getBlockHeader(blockHash, header):
-    debug "Failed to get BlockHeader",
-      hash = blockHash
+    debug "Failed to get BlockHeader", hash = blockHash
     return ValidationResult.Error
 
   setCanonical(c, header)

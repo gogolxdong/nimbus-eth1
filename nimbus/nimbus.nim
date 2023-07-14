@@ -163,8 +163,7 @@ proc setupP2P(nimbus: NimbusNode, conf: NimbusConf,
     let
       exCtrlFile = if conf.syncCtrlFile.isNone: none(string)
                    else: some(conf.syncCtrlFile.get)
-      tickerOK = conf.logLevel in {
-        LogLevel.INFO, LogLevel.DEBUG, LogLevel.TRACE}
+      tickerOK = conf.logLevel in {LogLevel.INFO, LogLevel.DEBUG, LogLevel.TRACE}
     case conf.syncMode:
     of SyncMode.Full:
       nimbus.fullSyncRef = FullSyncRef.init(

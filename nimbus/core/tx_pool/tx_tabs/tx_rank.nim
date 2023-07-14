@@ -175,9 +175,7 @@ proc nItems*(rt: var TxRankTab): int =
   ## Total number of address items registered
   rt.addrTab.len
 
-proc eq*(rt: var TxRankTab; sender: EthAddress):
-       SortedSetResult[EthAddress,TxRank]
-    {.gcsafe,raises: [KeyError].} =
+proc eq*(rt: var TxRankTab; sender: EthAddress): SortedSetResult[EthAddress,TxRank] {.gcsafe,raises: [KeyError].} =
   if rt.addrTab.hasKey(sender):
     return toSortedSetResult(key = sender, data = rt.addrTab[sender])
   err(rbNotFound)

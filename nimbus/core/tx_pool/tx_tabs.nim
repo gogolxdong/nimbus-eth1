@@ -349,9 +349,7 @@ proc flushLocals*(xp: TxTabsRef) =
 # Public iterators, `TxRank` > `(EthAddress,TxStatusNonceRef)`
 # ------------------------------------------------------------------------------
 
-iterator incAccount*(xp: TxTabsRef; bucket: TxItemStatus;
-                     fromRank = TxRank.low): (EthAddress,TxStatusNonceRef)
-        {.gcsafe,raises: [KeyError].} =
+iterator incAccount*(xp: TxTabsRef; bucket: TxItemStatus; fromRank = TxRank.low): (EthAddress,TxStatusNonceRef) {.gcsafe,raises: [KeyError].} =
   ## Walk accounts with increasing ranks and return a nonce-ordered item list.
   let rcBucket = xp.byStatus.eq(bucket)
   if rcBucket.isOk:
@@ -392,9 +390,7 @@ iterator decAccount*(xp: TxTabsRef; bucket: TxItemStatus;
       # Get next ranked address list (top down index walk)
       rcRank = xp.byRank.lt(rank) # potenially modified database
 
-iterator packingOrderAccounts*(xp: TxTabsRef; bucket: TxItemStatus):
-        (EthAddress,TxStatusNonceRef)
-    {.gcsafe,raises: [KeyError].} =
+iterator packingOrderAccounts*(xp: TxTabsRef; bucket: TxItemStatus): (EthAddress,TxStatusNonceRef) {.gcsafe,raises: [KeyError].} =
   ## Loop over accounts from a particular bucket ordered by
   ## + local ranks, higest one first
   ## + remote ranks, higest one first
@@ -411,9 +407,7 @@ iterator packingOrderAccounts*(xp: TxTabsRef; bucket: TxItemStatus):
 # Public iterators, `TxRank` > `(EthAddress,TxSenderNonceRef)`
 # ------------------------------------------------------------------------------
 
-iterator incAccount*(xp: TxTabsRef;
-                     fromRank = TxRank.low): (EthAddress,TxSenderNonceRef)
-        {.gcsafe,raises: [KeyError].} =
+iterator incAccount*(xp: TxTabsRef; fromRank = TxRank.low): (EthAddress,TxSenderNonceRef) {.gcsafe,raises: [KeyError].} =
   ## Variant of `incAccount()` without bucket restriction.
   var rcRank = xp.byRank.ge(fromRank)
   while rcRank.isOk:
@@ -427,9 +421,7 @@ iterator incAccount*(xp: TxTabsRef;
     rcRank = xp.byRank.gt(rank) # potenially modified database
 
 
-iterator decAccount*(xp: TxTabsRef;
-                     fromRank = TxRank.high): (EthAddress,TxSenderNonceRef)
-        {.gcsafe,raises: [KeyError].} =
+iterator decAccount*(xp: TxTabsRef; fromRank = TxRank.high): (EthAddress,TxSenderNonceRef) {.gcsafe,raises: [KeyError].} =
   ## Variant of `decAccount()` without bucket restriction.
   var rcRank = xp.byRank.le(fromRank)
   while rcRank.isOk:
@@ -446,8 +438,7 @@ iterator decAccount*(xp: TxTabsRef;
 # Public second stage iterators: nonce-ordered item lists.
 # -----------------------------------------------------------------------------
 
-iterator incNonce*(nonceList: TxSenderNonceRef;
-                   nonceFrom = AccountNonce.low): TxItemRef =
+iterator incNonce*(nonceList: TxSenderNonceRef; nonceFrom = AccountNonce.low): TxItemRef =
   ## Second stage iterator inside `incAccount()` or `decAccount()`. The
   ## items visited are always sorted by least-nonce first.
   var rc = nonceList.ge(nonceFrom)
@@ -457,8 +448,7 @@ iterator incNonce*(nonceList: TxSenderNonceRef;
     rc = nonceList.gt(nonce) # potenially modified database
 
 
-iterator incNonce*(nonceList: TxStatusNonceRef;
-                   nonceFrom = AccountNonce.low): TxItemRef =
+iterator incNonce*(nonceList: TxStatusNonceRef; nonceFrom = AccountNonce.low): TxItemRef =
   ## Variant of `incNonce()` for the `TxStatusNonceRef` list.
   var rc = nonceList.ge(nonceFrom)
   while rc.isOk:
@@ -494,8 +484,7 @@ iterator decNonce*(nonceList: TxStatusNonceRef;
 # Public functions, debugging
 # ------------------------------------------------------------------------------
 
-proc verify*(xp: TxTabsRef): Result[void,TxInfo]
-    {.gcsafe, raises: [CatchableError].} =
+proc verify*(xp: TxTabsRef): Result[void,TxInfo] {.gcsafe, raises: [CatchableError].} =
   ## Verify descriptor and subsequent data structures.
   block:
     let rc = xp.bySender.verify
