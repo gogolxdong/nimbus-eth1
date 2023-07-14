@@ -256,8 +256,7 @@ proc clone*(com: CommonRef): CommonRef =
 # Public functions
 # ------------------------------------------------------------------------------
 
-func toHardFork*(
-    com: CommonRef, forkDeterminer: ForkDeterminationInfo): HardFork =
+func toHardFork*(com: CommonRef, forkDeterminer: ForkDeterminationInfo): HardFork =
   toHardFork(com.forkTransitionTable, forkDeterminer)
 
 proc hardForkTransition(
@@ -315,11 +314,10 @@ func forkGTE*(com: CommonRef, fork: HardFork): bool =
   com.currentFork >= fork
 
 # TODO: move this consensus code to where it belongs
-proc minerAddress*(com: CommonRef; header: BlockHeader): EthAddress
-    {.gcsafe, raises: [CatchableError].} =
-  if com.consensusType != ConsensusType.POA:
-    # POW and POS return header.coinbase
-    return header.coinbase
+proc minerAddress*(com: CommonRef; header: BlockHeader): EthAddress {.gcsafe, raises: [CatchableError].} =
+  # info "minerAddress", header=header
+  # if com.consensusType != ConsensusType.POA:
+  return header.coinbase
 
   # POA return ecRecover
   let account = header.ecRecover

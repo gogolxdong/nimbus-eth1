@@ -91,12 +91,13 @@ proc rpcEstimateGas*(cd: RpcCallData, header: BlockHeader, com: CommonRef, gasCa
     parentHash: header.blockHash,
     timestamp:  getTime().utc.toTime,
     gasLimit:   0.GasInt,          
-    )    
+    ) 
   let vmState = BaseVMState.new(topHeader, com)
   let fork    = vmState.determineFork
+  # info "rpcEstimateGas", fork=fork
   let txGas   = gasFees[fork][GasTransaction] # txGas always 21000, use constants?
   var params  = toCallParams(vmState, cd, gasCap)
-
+  # info "rpcEstimateGas", params=params
   var
     lo : GasInt = txGas - 1
     hi : GasInt = cd.gasLimit.get(0.GasInt)
@@ -148,7 +149,6 @@ proc rpcEstimateGas*(cd: RpcCallData, header: BlockHeader, com: CommonRef, gasCa
 
   # Create a helper to check if a gas allowance results in an executable transaction
   proc executable(gasLimit: GasInt): bool {.gcsafe, raises: [CatchableError].} =
-    info "executable"
     if intrinsicGas > gasLimit:
       return true
 

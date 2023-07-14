@@ -97,6 +97,7 @@ if not defined(windows):
 --define:nimTypeNames
 --define:deepcopy
 --define:orc
+# --define: nimDumpRpcs
 switch("define", "withoutPCRE")
 
 when not defined(disable_libbacktrace):

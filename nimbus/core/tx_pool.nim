@@ -527,26 +527,10 @@ proc add*(xp: TxPoolRef; txs: openArray[Transaction]; info = "") {.gcsafe,raises
   xp.pDoubleCheckAdd xp.addTxs(txs, info).topItems
   xp.maintenanceProcessing
 
-# core/tx_pool.go(854): func (pool *TxPool) AddLocals(txs []..
-# core/tx_pool.go(883): func (pool *TxPool) AddRemotes(txs []..
 proc add*(xp: TxPoolRef; tx: Transaction; info = "") {.gcsafe,raises: [CatchableError].} =
-  ## Variant of `add()` for a single transaction.
   xp.add(@[tx], info)
 
 proc smartHead*(xp: TxPoolRef; pos: BlockHeader; blindMode = false): bool {.gcsafe,raises: [CatchableError].} =
-  ## This function moves the internal head cache (i.e. tx insertion point,
-  ## vmState) and ponts it to a now block on the chain.
-  ##
-  ## In standard mode when argument `blindMode` is `false`, it calculates the
-  ## txs that need to be added or deleted after moving the insertion point
-  ## head so that the tx-pool will not fail to re-insert quered txs that are
-  ## on the chain, already. Neither will it loose any txs. After updating the
-  ## the internal head cache, the previously calculated actions will be
-  ## applied.
-  ##
-  ## If the argument `blindMode` is passed `true`, the insertion head is
-  ## simply set ignoring all changes. This mode makes sense only in very
-  ## particular circumstances.
   if blindMode:
     xp.sethead(pos)
     return true

@@ -2,7 +2,7 @@
 
 import
   std/[times, tables, typetraits, sequtils],
-  json_rpc/rpcserver, hexstrings, stint, stew/byteutils,
+  json_rpc/[rpcserver,jsonmarshal], hexstrings, stint, stew/byteutils,
   json_serialization, web3/conversions, json_serialization/std/options,
   eth/common/[eth_types_json_serialization, eth_types],
   eth/[keys, rlp, p2p],
@@ -13,7 +13,9 @@ import
   ../core/tx_pool,
   ../common/[common, context],
   ../utils/utils,
-  ./filters, ../evm/async/data_sources/json_rpc_data_source
+  ./filters, ../evm/async/data_sources/json_rpc_data_source,
+  ../evm/[types, state], ../db/accounts_cache
+
 
 #[
   Note:
@@ -29,23 +31,15 @@ proc setupEthRpc*(
     txPool: TxPoolRef, server: RpcServer) =
 
   let chainDB = com.db
-  proc getStateDB(header: BlockHeader): ReadOnlyStateDB =
-    ## Retrieves the account db from canonical head
-    # we don't use accounst_cache here because it's only read operations
+  proc getStateDB(header: BlockHeader): state_db.ReadOnlyStateDB =
     let ac = newAccountStateDB(chainDB.db, header.stateRoot, com.pruneTrie)
-    result = ReadOnlyStateDB(ac)
+    result = state_db.ReadOnlyStateDB(ac)
 
-  proc stateDBFromTag(tag: string, readOnly = true): ReadOnlyStateDB
-      {.gcsafe, raises: [CatchableError].} =
+  proc stateDBFromTag(tag: string, readOnly = true): state_db.ReadOnlyStateDB {.gcsafe, raises: [CatchableError].} =
     result = getStateDB(chainDB.headerFromTag(tag))
 
   server.rpc("eth_protocolVersion") do() -> Option[string]:
-    # Old Ethereum wiki documents this as returning a decimal string.
-    # Infura documents this as returning 0x-prefixed hex string.
-    # Geth 1.10.0 has removed this call "as it makes no sense".
-    # - https://eth.wiki/json-rpc/API#eth_protocolversion
-    # - https://infura.io/docs/ethereum/json-rpc/eth-protocolVersion
-    # - https://blog.ethereum.org/2021/03/03/geth-v1-10-0/#compatibility
+    info "eth_protocolVersion"
     for n in node.capabilities:
       if n.name == "eth":
         return some($n.version)
@@ -55,9 +49,7 @@ proc setupEthRpc*(
     return encodeQuantity(distinctBase(com.chainId))
 
   server.rpc("eth_syncing") do() -> JsonNode:
-    ## Returns SyncObject or false when not syncing.
-    # TODO: make sure we are not syncing
-    # when we reach the recent block
+    info "eth_syncing"
     let numPeers = node.peerPool.connectedNodes.len
     if numPeers > 0:
       var sync = SyncState(
@@ -70,32 +62,28 @@ proc setupEthRpc*(
       result = newJBool(false)
 
   server.rpc("eth_coinbase") do() -> EthAddress:
-    ## Returns the current coinbase address.
-    # currently we don't have miner
+    info "eth_coinbase"
     result = default(EthAddress)
 
   server.rpc("eth_mining") do() -> bool:
-    ## Returns true if the client is mining, otherwise false.
-    # currently we don't have miner
+    info "eth_mining"
     result = false
 
   server.rpc("eth_hashrate") do() -> HexQuantityStr:
-    ## Returns the number of hashes per second that the node is mining with.
-    # currently we don't have miner
+    info "eth_hashrate"
     result = encodeQuantity(0.uint)
 
   server.rpc("eth_gasPrice") do() -> HexQuantityStr:
-    ## Returns an integer of the current gas price in wei.
+    info "eth_gasPrice"
     result = encodeQuantity(calculateMedianGasPrice(chainDB).uint64)
 
   server.rpc("eth_accounts") do() -> seq[EthAddressStr]:
-    ## Returns a list of addresses owned by client.
+    info "eth_accounts"
     result = newSeqOfCap[EthAddressStr](ctx.am.numAccounts)
     for k in ctx.am.addresses:
       result.add ethAddressStr(k)
 
   server.rpc("eth_blockNumber") do() -> HexQuantityStr:
-    ## Returns integer of the current block number the client is on.
     result = encodeQuantity(chainDB.getCanonicalHead().blockNumber)
 
   server.rpc("setBalance") do(data: EthAddressStr, balance: HexQuantityStr) -> HexQuantityStr:
@@ -123,11 +111,7 @@ proc setupEthRpc*(
     result = encodeQuantity accBalance
 
   server.rpc("eth_getBalance") do(data: EthAddressStr, quantityTag: string) -> HexQuantityStr:
-    ## Returns the balance of the account of given address.
-    ##
-    ## data: address to check for balance.
-    ## quantityTag: integer block number, or the string "latest", "earliest" or "pending", see the default block parameter.
-    ## Returns integer of the current balance in wei.
+    info "eth_getBalance", data=data.string, quantityTag=quantityTag
     let
       accDB   = stateDBFromTag(quantityTag)
       address = data.toAddress
@@ -135,12 +119,7 @@ proc setupEthRpc*(
     result = encodeQuantity(balance)
 
   server.rpc("eth_getStorageAt") do(data: EthAddressStr, slot: HexDataStr, quantityTag: string) -> HexDataStr:
-    ## Returns the value from a storage position at a given address.
-    ##
-    ## data: address of the storage.
-    ## slot: integer of the position in the storage.
-    ## quantityTag: integer block number, or the string "latest", "earliest" or "pending", see the default block parameter.
-    ## Returns: the value at this storage position.
+    info "eth_getStorageAt", data=data.string, slot=slot.string, quantityTag=quantityTag
     let
       accDB   = stateDBFromTag(quantityTag)
       address = data.toAddress
@@ -149,21 +128,14 @@ proc setupEthRpc*(
     result = hexDataStr(value)
 
   server.rpc("eth_getTransactionCount") do(data: EthAddressStr, quantityTag: string) -> HexQuantityStr:
-    ## Returns the number of transactions sent from an address.
-    ##
-    ## data: address.
-    ## quantityTag: integer block number, or the string "latest", "earliest" or "pending", see the default block parameter.
-    ## Returns integer of the number of transactions send from this address.
+    info "eth_getTransactionCount", data=data.string, quantityTag=quantityTag
     let
       address = data.toAddress
       accDB   = stateDBFromTag(quantityTag)
     result = encodeQuantity(accDB.getNonce(address))
 
   server.rpc("eth_getBlockTransactionCountByHash") do(data: EthHashStr) -> HexQuantityStr:
-    ## Returns the number of transactions in a block from a block matching the given block hash.
-    ##
-    ## data: hash of a block
-    ## Returns integer of the number of transactions in this block.
+    info "eth_getBlockTransactionCountByHash", data=data.string
     let
       blockHash = data.toHash
       header    = chainDB.getBlockHeader(blockHash)
@@ -171,20 +143,14 @@ proc setupEthRpc*(
     result = encodeQuantity(txCount.uint)
 
   server.rpc("eth_getBlockTransactionCountByNumber") do(quantityTag: string) -> HexQuantityStr:
-    ## Returns the number of transactions in a block matching the given block number.
-    ##
-    ## data: integer of a block number, or the string "earliest", "latest" or "pending", as in the default block parameter.
-    ## Returns integer of the number of transactions in this block.
+    info "eth_getBlockTransactionCountByNumber", data=quantityTag
     let
       header  = chainDB.headerFromTag(quantityTag)
       txCount = chainDB.getTransactionCount(header.txRoot)
     result = encodeQuantity(txCount.uint)
 
   server.rpc("eth_getUncleCountByBlockHash") do(data: EthHashStr) -> HexQuantityStr:
-    ## Returns the number of uncles in a block from a block matching the given block hash.
-    ##
-    ## data: hash of a block.
-    ## Returns integer of the number of uncles in this block.
+    info "eth_getUncleCountByBlockHash", data=data.string
     let
       blockHash   = data.toHash
       header      = chainDB.getBlockHeader(blockHash)
@@ -192,21 +158,14 @@ proc setupEthRpc*(
     result = encodeQuantity(unclesCount.uint)
 
   server.rpc("eth_getUncleCountByBlockNumber") do(quantityTag: string) -> HexQuantityStr:
-    ## Returns the number of uncles in a block from a block matching the given block number.
-    ##
-    ## quantityTag: integer of a block number, or the string "latest", "earliest" or "pending", see the default block parameter.
-    ## Returns integer of uncles in this block.
+    info "eth_getUncleCountByBlockNumber", quantityTag=quantityTag
     let
       header      = chainDB.headerFromTag(quantityTag)
       unclesCount = chainDB.getUnclesCount(header.ommersHash)
     result = encodeQuantity(unclesCount.uint)
 
   server.rpc("eth_getCode") do(data: EthAddressStr, quantityTag: string) -> HexDataStr:
-    ## Returns code at a given address.
-    ##
-    ## data: address
-    ## quantityTag: integer block number, or the string "latest", "earliest" or "pending", see the default block parameter.
-    ## Returns the code from the given address.
+    info "eth_getCode", quantityTag=quantityTag
     let
       accDB   = stateDBFromTag(quantityTag)
       address = data.toAddress
@@ -214,19 +173,11 @@ proc setupEthRpc*(
     result = hexDataStr(storage)
 
   template sign(privateKey: PrivateKey, message: string): string =
-    # message length encoded as ASCII representation of decimal
     let msgData = "\x19Ethereum Signed Message:\n" & $message.len & message
     $sign(privateKey, msgData.toBytes())
 
   server.rpc("eth_sign") do(data: EthAddressStr, message: HexDataStr) -> HexDataStr:
-    ## The sign method calculates an Ethereum specific signature with: sign(keccak256("\x19Ethereum Signed Message:\n" + len(message) + message))).
-    ## By adding a prefix to the message makes the calculated signature recognisable as an Ethereum specific signature.
-    ## This prevents misuse where a malicious DApp can sign arbitrary data (e.g. transaction) and use the signature to impersonate the victim.
-    ## Note the address to sign with must be unlocked.
-    ##
-    ## data: address.
-    ## message: message to sign.
-    ## Returns signature.
+    info "eth_sign", data=data.string
     let
       address = data.toAddress
       acc     = ctx.am.getAccount(address).tryGet()
@@ -237,8 +188,7 @@ proc setupEthRpc*(
     result = ("0x" & sign(acc.privateKey, cast[string](msg))).HexDataStr
 
   server.rpc("eth_signTransaction") do(data: TxSend) -> HexDataStr:
-    ## Signs a transaction that can be submitted to the network at a later time using with
-    ## eth_sendRawTransaction
+    info "eth_signTransaction", data=data
     let
       address = data.source.toAddress
       acc     = ctx.am.getAccount(address).tryGet()
@@ -256,11 +206,7 @@ proc setupEthRpc*(
     result = hexDataStr(rlpTx)
 
   server.rpc("eth_sendTransaction") do(data: TxSend) -> EthHashStr:
-    ## Creates new message call transaction or a contract creation, if the data field contains code.
-    ##
-    ## obj: the transaction object.
-    ## Returns the transaction hash, or the zero hash if the transaction is not yet available.
-    ## Note: Use eth_getTransactionReceipt to get the contract address, after the transaction was mined, when you created a contract.
+    info "eth_sendTransaction", data=data
     let
       address = data.source.toAddress
       acc     = ctx.am.getAccount(address).tryGet()
@@ -278,51 +224,73 @@ proc setupEthRpc*(
     result = rlpHash(signedTx).ethHashStr
 
   server.rpc("eth_sendRawTransaction") do(data: HexDataStr) -> EthHashStr:
-    ## Creates new message call transaction or a contract creation for signed transactions.
-    ##
-    ## data: the signed transaction data.
-    ## Returns the transaction hash, or the zero hash if the transaction is not yet available.
-    ## Note: Use eth_getTransactionReceipt to get the contract address, after the transaction was mined, when you created a contract.
     let
       txBytes = hexToSeqByte(data.string)
       signedTx = decodeTx(txBytes)
 
-    txPool.add(signedTx)
+    # txPool.add(signedTx)
+    let header = chainDB.headerFromTag("0x1C8EB3A")
+    var vmState = BaseVMState.new(header, com)
+    let fork = vmState.com.toEVMFork(header.forkDeterminationInfoForHeader)
+
+    var sender = signedTx.getSender()
+
+    var balance = vmState.stateDB.getBalance(sender)
+    let accTx = vmState.stateDB.beginSavepoint
+    let gasBurned = signedTx.txCallEvm(sender, vmState, fork)
+    vmState.stateDB.commit(accTx)
+
     result = rlpHash(signedTx).ethHashStr
+    info "eth_sendRawTransaction", data=data.string, result=result.string, balance=balance, gasBurned=gasBurned
+
+  server.rpc("eth_getTransactionByHash") do(data: EthHashStr) -> Option[TransactionObject]:
+    info "eth_getTransactionByHash", data=data.string
+    let txDetails = chainDB.getTransactionKey(data.toHash())
+    if txDetails.index < 0:
+      return none(TransactionObject)
+
+    let header = chainDB.getBlockHeader(txDetails.blockNumber)
+    info "eth_getTransactionByHash", header=header
+    var tx: Transaction
+    if chainDB.getTransaction(header.txRoot, txDetails.index, tx):
+      result = some(populateTransactionObject(tx, header, txDetails.index))
 
   server.rpc("eth_call") do(call: EthCall, quantityTag: string) -> HexDataStr:
-    ## Executes a new message call immediately without creating a transaction on the block chain.
-    ##
-    ## call: the transaction call object.
-    ## quantityTag:  integer block number, or the string "latest", "earliest" or "pending", see the default block parameter.
-    ## Returns the return value of executed contract.
+    info "eth_call", call=call, quantityTag=quantityTag
     let
       header   = headerFromTag(chainDB, quantityTag)
       callData = callData(call)
       res      = rpcCallEvm(callData, header, com)
     result = hexDataStr(res.output)
 
-  server.rpc("eth_estimateGas") do(call: EthCall, quantityTag: string) -> HexQuantityStr:
-    ## Generates and returns an estimate of how much gas is necessary to allow the transaction to complete.
-    ## The transaction will not be added to the blockchain. Note that the estimate may be significantly more than
-    ## the amount of gas actually used by the transaction, for a variety of reasons including EVM mechanics and node performance.
-    ##
-    ## call: the transaction call object.
-    ## quantityTag:  integer block number, or the string "latest", "earliest" or "pending", see the default block parameter.
-    ## Returns the amount of gas used.
-    let
-      header   = chainDB.headerFromTag(quantityTag)
-      callData = callData(call)
-      # TODO: DEFAULT_RPC_GAS_CAP should configurable
-      gasUsed  = rpcEstimateGas(callData, header, com, DEFAULT_RPC_GAS_CAP)
-    result = encodeQuantity(gasUsed.uint64)
+  proc eth_estimateGas(params: JsonNode): Future[StringOfJson] {.gcsafe.} =
+    try:
+      var to = if params[0].hasKey("to"): params[0]["to"].getStr() else : ""
+      var call : EthCall
+      if to == "":
+        call = EthCall(source: some EthAddressStr params.elems[0]["from"].getStr, 
+                            data: some EthHashStr params.elems[0]["data"].getStr)
+      else:
+         call = unpackArg(params, "call", type(EthCall))
+      let header = chainDB.headerFromTag("0x1C8EB3A")
+      let callData = callData(call)
+      let gasUsed = rpcEstimateGas(callData, header, com, DEFAULT_RPC_GAS_CAP)
+      result = newFuture[StringOfJson]()
+      result.complete StringOfJson $gasUsed
+    
+    except:
+      echo getCurrentExceptionMsg()
+
+  server.router.register("eth_estimateGas", eth_estimateGas)
+  # server.rpc("eth_estimateGas") do(call: EthCall) -> HexQuantityStr:
+  #   let
+  #     header   = chainDB.headerFromTag("latest")
+  #     callData = callData(call)
+  #     gasUsed  = rpcEstimateGas(callData, header, com, DEFAULT_RPC_GAS_CAP)
+  #   result = encodeQuantity(gasUsed.uint64)
 
   server.rpc("eth_getBlockByHash") do(data: EthHashStr, fullTransactions: bool) -> Option[BlockObject]:
-    ## Returns information about a block by hash.
-    ##
-    ## data: Hash of a block.
-    ## fullTransactions: If true it returns the full transaction objects, if false only the hashes of the transactions.
-    ## Returns BlockObject or nil when no block was found.
+    info "eth_getBlockByHash", data=data.string, fullTransactions=fullTransactions
     var
       header: BlockHeader
       hash = data.toHash
@@ -333,40 +301,15 @@ proc setupEthRpc*(
       result = none BlockObject
 
   server.rpc("eth_getBlockByNumber") do(quantityTag: string, fullTransactions: bool) -> Option[BlockObject]:
-    ## Returns information about a block by block number.
-    ##
-    ## quantityTag: integer of a block number, or the string "earliest", "latest" or "pending", as in the default block parameter.
-    ## fullTransactions: If true it returns the full transaction objects, if false only the hashes of the transactions.
-    ## Returns BlockObject or nil when no block was found.
     try:
       let header = chainDB.headerFromTag(quantityTag)
       result = some(populateBlockObject(header, chainDB, fullTransactions))
     except CatchableError:
       result = none(BlockObject)
 
-  server.rpc("eth_getTransactionByHash") do(data: EthHashStr) -> Option[TransactionObject]:
-    ## Returns the information about a transaction requested by transaction hash.
-    ##
-    ## data: hash of a transaction.
-    ## Returns requested transaction information.
-    let txDetails = chainDB.getTransactionKey(data.toHash())
-    if txDetails.index < 0:
-      return none(TransactionObject)
-
-    let header = chainDB.getBlockHeader(txDetails.blockNumber)
-    var tx: Transaction
-    if chainDB.getTransaction(header.txRoot, txDetails.index, tx):
-      result = some(populateTransactionObject(tx, header, txDetails.index))
-
-    # TODO: if the requested transaction not in blockchain
-    # try to look for pending transaction in txpool
 
   server.rpc("eth_getTransactionByBlockHashAndIndex") do(data: EthHashStr, quantity: HexQuantityStr) -> Option[TransactionObject]:
-    ## Returns information about a transaction by block hash and transaction index position.
-    ##
-    ## data: hash of a block.
-    ## quantity: integer of the transaction index position.
-    ## Returns  requested transaction information.
+    info "eth_getTransactionByBlockHashAndIndex", data=data.string
     let index  = hexToInt(quantity.string, int)
     var header: BlockHeader
     if not chainDB.getBlockHeader(data.toHash(), header):
@@ -377,10 +320,7 @@ proc setupEthRpc*(
       result = some(populateTransactionObject(tx, header, index))
 
   server.rpc("eth_getTransactionByBlockNumberAndIndex") do(quantityTag: string, quantity: HexQuantityStr) -> Option[TransactionObject]:
-    ## Returns information about a transaction by block number and transaction index position.
-    ##
-    ## quantityTag: a block number, or the string "earliest", "latest" or "pending", as in the default block parameter.
-    ## quantity: the transaction index position.
+    info "eth_getTransactionByBlockNumberAndIndex", quantityTag=quantityTag,quantity=quantity.string
     let
       header = chainDB.headerFromTag(quantityTag)
       index  = hexToInt(quantity.string, int)
@@ -390,11 +330,7 @@ proc setupEthRpc*(
       result = some(populateTransactionObject(tx, header, index))
 
   server.rpc("eth_getTransactionReceipt") do(data: EthHashStr) -> Option[ReceiptObject]:
-    ## Returns the receipt of a transaction by transaction hash.
-    ##
-    ## data: hash of a transaction.
-    ## Returns transaction receipt.
-
+    info "eth_getTransactionReceipt", data=data.string
     let txDetails = chainDB.getTransactionKey(data.toHash())
     if txDetails.index < 0:
       return none(ReceiptObject)
@@ -417,11 +353,8 @@ proc setupEthRpc*(
       idx.inc
 
   server.rpc("eth_getUncleByBlockHashAndIndex") do(data: EthHashStr, quantity: HexQuantityStr) -> Option[BlockObject]:
-    ## Returns information about a uncle of a block by hash and uncle index position.
-    ##
-    ## data: hash of block.
-    ## quantity: the uncle's index position.
-    ## Returns BlockObject or nil when no block was found.
+    info "eth_getUncleByBlockHashAndIndex", data=data.string
+
     let index  = hexToInt(quantity.string, int)
     var header: BlockHeader
     if not chainDB.getBlockHeader(data.toHash(), header):
@@ -436,11 +369,7 @@ proc setupEthRpc*(
     result = some(uncle)
 
   server.rpc("eth_getUncleByBlockNumberAndIndex") do(quantityTag: string, quantity: HexQuantityStr) -> Option[BlockObject]:
-    # Returns information about a uncle of a block by number and uncle index position.
-    ##
-    ## quantityTag: a block number, or the string "earliest", "latest" or "pending", as in the default block parameter.
-    ## quantity: the uncle's index position.
-    ## Returns BlockObject or nil when no block was found.
+    info "eth_getUncleByBlockNumberAndIndex", quantityTag=quantityTag
     let
       index  = hexToInt(quantity.string, int)
       header = chainDB.headerFromTag(quantityTag)
@@ -462,10 +391,7 @@ proc setupEthRpc*(
     if headerBloomFilter(header, opts.address, opts.topics):
       let blockBody = chain.getBlockBody(hash)
       let receipts = chain.getReceipts(header.receiptRoot)
-      # Note: this will hit assertion error if number of block transactions
-      # do not match block receipts.
-      # Although this is fine as number of receipts should always match number
-      # of transactions
+
       let logs = deriveLogs(header, blockBody.transactions, receipts)
       let filteredLogs = filterLogs(logs, opts.address, opts.topics)
       return filteredLogs
@@ -493,29 +419,15 @@ proc setupEthRpc*(
     return logs
 
   server.rpc("eth_getLogs") do(filterOptions: FilterOptions) -> seq[FilterLog]:
-    ## filterOptions: settings for this filter.
-    ## Returns a list of all logs matching a given filter object.
-    ## TODO: Current implementation is pretty naive and not efficient
-    ## as it requires to fetch all transactions and all receipts from database.
-    ## Other clients (Geth):
-    ## - Store logs related data in receipts.
-    ## - Have separate indexes for Logs in given block
-    ## Both of those changes require improvements to the way how we keep our data
-    ## in Nimbus.
     if filterOptions.blockHash.isSome():
       let hash = filterOptions.blockHash.unsafeGet()
       let header = chainDB.getBlockHeader(hash)
       return getLogsForBlock(chainDB, hash, header, filterOptions)
     else:
-      # TODO: do something smarter with tags. It would be the best if
-      # tag would be an enum (Earliest, Latest, Pending, Number), and all operations
-      # would operate on this enum instead of raw strings. This change would need
-      # to be done on every endpoint to be consistent.
+
       let fromHeader = chainDB.headerFromTag(filterOptions.fromBlock)
       let toHeader = chainDB.headerFromTag(filterOptions.fromBlock)
 
-      # Note: if fromHeader.blockNumber > toHeader.blockNumber, no logs will be
-      # returned. This is consistent with, what other ethereum clients return
       let logs = chainDB.getLogsForRange(
         fromHeader.blockNumber,
         toHeader.blockNumber,

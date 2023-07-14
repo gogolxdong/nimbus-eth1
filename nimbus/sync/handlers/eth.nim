@@ -598,8 +598,7 @@ method handleNewBlock*(ctx: EthWireRef, peer: Peer, blk: EthBlock, totalDifficul
 method handleNewBlockHashes*(ctx: EthWireRef, peer: Peer, hashes: openArray[NewBlockHashesAnnounce])
     {.gcsafe, raises: [CatchableError].} =
   if ctx.chain.com.forkGTE(MergeFork):
-    debug "Dropping peer for sending NewBlockHashes after merge (EIP-3675)",
-      peer, numHashes=hashes.len
+    info "Dropping peer for sending NewBlockHashes after merge (EIP-3675)", peer, numHashes=hashes.len
     asyncSpawn banPeer(ctx.peerPool, peer, PEER_LONG_BANTIME)
     return
 

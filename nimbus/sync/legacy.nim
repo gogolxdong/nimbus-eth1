@@ -351,15 +351,9 @@ proc sendBlockOrHash(ctx: LegacySyncRef, peer: Peer) {.async.} =
 
       let
         ourTD  = db.getScore(blockHash)
-        newBlock = EthBlock(
-          header: header,
-          txs: body.transactions,
-          uncles: body.uncles)
+        newBlock = EthBlock(header: header,txs: body.transactions,uncles: body.uncles)
 
-      trace "send newBlock",
-        number = header.blockNumber,
-        hash = short(header.blockHash),
-        td = ourTD, peer
+      trace "send newBlock", number = header.blockNumber, hash = short(header.blockHash), td = ourTD, peer
       await peer.newBlock(newBlock, ourTD)
       return
 

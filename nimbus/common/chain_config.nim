@@ -277,8 +277,7 @@ proc validateChainConfig*(conf: ChainConfig): bool =
     if cur.time.isSome:
       lastTimeBasedFork = cur
 
-  if conf.clique.period.isSome or
-     conf.clique.epoch.isSome:
+  if conf.clique.period.isSome or conf.clique.epoch.isSome:
     conf.consensusType = ConsensusType.POA
 
 proc validateNetworkParams*(params: var NetworkParams): bool =
@@ -450,8 +449,7 @@ proc chainConfigForNetwork*(id: NetworkId): ChainConfig =
   else:
     ChainConfig()
 
-proc genesisBlockForNetwork*(id: NetworkId): Genesis
-    {.gcsafe, raises: [ValueError, RlpError].} =
+proc genesisBlockForNetwork*(id: NetworkId): Genesis {.gcsafe, raises: [ValueError, RlpError].} =
   result = case id
   of Bsc:
     Genesis(
@@ -512,8 +510,7 @@ proc genesisBlockForNetwork*(id: NetworkId): Genesis
   else:
     Genesis()
 
-proc networkParams*(id: NetworkId): NetworkParams
-    {.gcsafe, raises: [ValueError, RlpError].} =
+proc networkParams*(id: NetworkId): NetworkParams {.gcsafe, raises: [ValueError, RlpError].} =
   result.genesis = genesisBlockForNetwork(id)
   result.config  = chainConfigForNetwork(id)
 

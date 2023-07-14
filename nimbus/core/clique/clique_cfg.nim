@@ -94,10 +94,7 @@ proc newCliqueCfg*(db: ChainDBRef): CliqueCfg =
 # ------------------------------------------------------------------------------
 
 # clique/clique.go(145): func ecrecover(header [..]
-proc ecRecover*(
-    cfg: CliqueCfg;
-    header: BlockHeader;
-      ): auto =
+proc ecRecover*(cfg: CliqueCfg;header: BlockHeader;): auto =
   cfg.signatures.ecRecover(header)
 
 # ------------------------------------------------------------------------------

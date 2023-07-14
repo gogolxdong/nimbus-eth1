@@ -48,8 +48,9 @@ proc headerFromTag*(chain: ChainDBRef, blockTag: string): BlockHeader
   of "safe": result = chain.safeHeader()
   of "finalized": result = chain.finalizedHeader()
   of "pending":
+    result = chain.getCanonicalHead()
     #TODO: Implement get pending block
-    raise newException(ValueError, "Pending tag not yet implemented")
+    # raise newException(ValueError, "Pending tag not yet implemented")
   else:
     # Raises are trapped and wrapped in JSON when returned to the user.
     tag.validateHexQuantity
@@ -124,8 +125,7 @@ template optionalBytes(src, dst: untyped) =
   if src.isSome:
     dst = hexToSeqByte(src.get.string)
 
-proc callData*(call: EthCall): RpcCallData
-    {.gcsafe, raises: [ValueError].} =
+proc callData*(call: EthCall): RpcCallData {.gcsafe, raises: [ValueError].} =
   optionalAddress(call.source, result.source)
   optionalAddress(call.to, result.to)
   optionalGas(call.gas, result.gasLimit)

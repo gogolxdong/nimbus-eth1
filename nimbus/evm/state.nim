@@ -163,12 +163,6 @@ proc reinit*(self:      BaseVMState; ## Object descriptor
              header:    BlockHeader; ## header with tx environment data fields
              ): bool
     {.gcsafe, raises: [CatchableError].} =
-  ## Variant of `reinit()`. The `parent` argument is used to sync the accounts
-  ## cache and the `header` is used as a container to pass the `timestamp`,
-  ## `gasLimit`, and `fee` values.
-  ##
-  ## It requires the `header` argument properly initalised so that for PoA
-  ## networks, the miner address is retrievable via `ecRecover()`.
   result = self.reinit(
     parent    = parent,
     timestamp = header.timestamp,
@@ -198,13 +192,6 @@ proc init*(
       com:         CommonRef;       ## block chain config
       tracerFlags: set[TracerFlags] = {})
     {.gcsafe, raises: [CatchableError].} =
-  ## Variant of `new()` constructor above for in-place initalisation. The
-  ## `parent` argument is used to sync the accounts cache and the `header`
-  ## is used as a container to pass the `timestamp`, `gasLimit`, and `fee`
-  ## values.
-  ##
-  ## It requires the `header` argument properly initalised so that for PoA
-  ## networks, the miner address is retrievable via `ecRecover()`.
   self.init(
     ac          = AccountsCache.init(com.db.db, parent.stateRoot, com.pruneTrie),
     parent      = parent,
@@ -224,12 +211,6 @@ proc new*(
       com:         CommonRef;       ## block chain config
       tracerFlags: set[TracerFlags] = {}): T
     {.gcsafe, raises: [CatchableError].} =
-  ## This is a variant of the `new()` constructor above where the `parent`
-  ## argument is used to sync the accounts cache and the `header` is used
-  ## as a container to pass the `timestamp`, `gasLimit`, and `fee` values.
-  ##
-  ## It requires the `header` argument properly initalised so that for PoA
-  ## networks, the miner address is retrievable via `ecRecover()`.
   new result
   result.init(
     parent      = parent,

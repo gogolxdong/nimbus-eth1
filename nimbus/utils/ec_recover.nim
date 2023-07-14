@@ -1,20 +1,4 @@
-# Nimbus
-# Copyright (c) 2018-2023 Status Research & Development GmbH
-# Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or
-#    http://www.apache.org/licenses/LICENSE-2.0)
-#  * MIT license ([LICENSE-MIT](LICENSE-MIT) or
-#    http://opensource.org/licenses/MIT)
-# at your option. This file may not be copied, modified, or distributed except
-# according to those terms.
 
-##
-## Recover Address From Signature
-## ==============================
-##
-## This module provides caching and direct versions for recovering the
-## `EthAddress` from an extended signature. The caching version reduces
-## calculation time for the price of maintaing it in a LRU cache.
 
 import
   ../constants,
@@ -22,12 +6,15 @@ import
   ./utils_defs,
   eth/[common, common/transaction, keys, rlp],
   stew/[keyed_queue, results],
-  stint
+  stint, chronicles
 
 export
   utils_defs, results
 
 {.push raises: [].}
+
+logScope:
+  topics = "ec_recover"
 
 const
   INMEMORY_SIGNATURES* = ##\
@@ -36,11 +23,9 @@ const
 
 type
   EcKey* = ##\
-    ## Internal key used for the LRU cache (derived from Hash256).
     array[32,byte]
 
   EcAddrResult* = ##\
-    ## Typical `EthAddress` result as returned by `ecRecover()` functions.
     Result[EthAddress,UtilsError]
 
   EcRecover* = object
@@ -83,11 +68,6 @@ proc hashPreSealed(header: BlockHeader): Hash256 =
 
 
 proc recoverImpl(rawSig: openArray[byte]; msg: Hash256): EcAddrResult =
-  ## Extract account address from the last 65 bytes of the `extraData` argument
-  ## (which is typically the bock header field with the same name.) The second
-  ## argument `hash` is used to extract the intermediate public key. Typically,
-  ## this would be the hash of the block header without the last 65 bytes of
-  ## the `extraData` field reserved for the signature.
   if rawSig.len < EXTRA_SEAL:
     return err((errMissingSignature,""))
 
@@ -109,13 +89,9 @@ proc recoverImpl(rawSig: openArray[byte]; msg: Hash256): EcAddrResult =
 # ------------------------------------------------------------------------------
 
 proc ecRecover*(header: BlockHeader): EcAddrResult =
-  ## Extracts account address from the `extraData` field (last 65 bytes) of
-  ## the argument header.
   header.extraData.recoverImpl(header.hashPreSealed)
 
 proc ecRecover*(tx: var Transaction): EcAddrResult =
-  ## Extracts sender address from transaction. This function has similar
-  ## functionality as `transaction.getSender()`.
   let txSig = tx.vrsSerialised
   if txSig.isErr:
     return err(txSig.error)
@@ -125,7 +101,6 @@ proc ecRecover*(tx: var Transaction): EcAddrResult =
     return err((errTxEncError, ex.msg))
 
 proc ecRecover*(tx: Transaction): EcAddrResult =
-  ## Variant of `ecRecover()` for call-by-value header.
   var ty = tx
   ty.ecRecover
 
@@ -155,11 +130,9 @@ proc len*(er: var EcRecover): int =
 # Public functions: caching ecRecover version
 # ------------------------------------------------------------------------------
 
-proc ecRecover*(er: var EcRecover; header: var BlockHeader): EcAddrResult
-    =
-  ## Extract account address from `extraData` field (last 65 bytes) of the
-  ## argument header. The result is kept in a LRU cache to re-purposed for
-  ## improved result delivery avoiding calculations.
+proc ecRecover*(er: var EcRecover; header: var BlockHeader): EcAddrResult =
+  info "ecRecover", er=er, header=header
+
   let key = header.blockHash.data
   block:
     let rc = er.q.lruFetch(key)
@@ -171,16 +144,11 @@ proc ecRecover*(er: var EcRecover; header: var BlockHeader): EcAddrResult
       return ok(er.q.lruAppend(key, rc.value, er.size.int))
     err(rc.error)
 
-proc ecRecover*(er: var EcRecover; header: BlockHeader): EcAddrResult
-    =
-  ## Variant of `ecRecover()` for call-by-value header
+proc ecRecover*(er: var EcRecover; header: BlockHeader): EcAddrResult =
   var hdr = header
   er.ecRecover(hdr)
 
-proc ecRecover*(er: var EcRecover; hash: Hash256): EcAddrResult
-    =
-  ## Variant of `ecRecover()` for hash only. Will only succeed it the
-  ## argument hash is uk the LRU queue.
+proc ecRecover*(er: var EcRecover; hash: Hash256): EcAddrResult =
   let rc = er.q.lruFetch(hash.data)
   if rc.isOk:
     return ok(rc.value)

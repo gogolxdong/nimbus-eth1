@@ -1,24 +1,3 @@
-# Nimbus
-# Copyright (c) 2018 Status Research & Development GmbH
-# Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or
-#    http://www.apache.org/licenses/LICENSE-2.0)
-#  * MIT license ([LICENSE-MIT](LICENSE-MIT) or
-#    http://opensource.org/licenses/MIT)
-# at your option. This file may not be copied, modified, or distributed except
-# according to those terms.
-
-##
-## Verify Headers for Clique PoA Consensus Protocol
-## ================================================
-##
-## Note that mining in currently unsupported by `NIMBUS`
-##
-## For details see
-## `EIP-225 <https://github.com/ethereum/EIPs/blob/master/EIPS/eip-225.md>`_
-## and
-## `go-ethereum <https://github.com/ethereum/EIPs/blob/master/EIPS/eip-225.md>`_
-##
 
 import
   std/[strformat, times, sequtils],
@@ -93,13 +72,12 @@ proc inTurn*(s: Snapshot; number: BlockNumber, signer: EthAddress): bool =
 # Private functions
 # ------------------------------------------------------------------------------
 
-# clique/clique.go(463): func (c *Clique) verifySeal(chain [..]
 proc verifySeal(c: Clique; header: BlockHeader): CliqueOkResult =
   ## Check whether the signature contained in the header satisfies the
   ## consensus protocol requirements. The method accepts an optional list of
   ## parent headers that aren't yet part of the local blockchain to generate
   ## the snapshots from.
-
+  info "verifySeal"
   # Verifying the genesis block is not supported
   if header.blockNumber.isZero:
     return err((errUnknownBlock,""))
@@ -203,7 +181,6 @@ proc verifyCascadingFields(c: Clique; com: CommonRef; header: BlockHeader;
 proc verifyHeaderFields(c: Clique; header: BlockHeader): CliqueOkResult =
   ## Check header fields, the ones that do not depend on a parent block.
   # clique/clique.go(250): number := header.Number.Uint64()
-
   # Don't waste time checking blocks from the future
   if getTime() < header.timestamp:
     return err((errFutureBlock,""))
