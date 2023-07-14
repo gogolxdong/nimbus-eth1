@@ -365,11 +365,11 @@ proc initializeEmptyDb*(com: CommonRef) {.gcsafe, raises: [CatchableError].} =
   var encode = rlp.encode(com.genesisHash)
   info "initializeEmptyDb", encode=encode, genesisHash = com.genesisHash
 
-  if canonicalHeadHashKey().toOpenArray notin trieDB:
-    trace "Writing genesis to DB"
+  if hashKey.toOpenArray notin trieDB:
+    info "Writing genesis to DB", consensusType=com.consensusType
     doAssert(com.genesisHeader.blockNumber.isZero, "can't commit genesis block with number > 0")
-    discard com.db.persistHeaderToDb(com.genesisHeader, com.consensusType == ConsensusType.POS)
-    doAssert(canonicalHeadHashKey().toOpenArray in trieDB)
+    discard com.db.persistHeaderToDb(com.genesisHeader, com.consensusType == ConsensusType.POA)
+    doAssert(hashKey.toOpenArray in trieDB)
 
 proc syncReqNewHead*(com: CommonRef; header: BlockHeader)
     {.gcsafe, raises: [].} =

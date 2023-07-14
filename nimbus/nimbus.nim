@@ -437,30 +437,44 @@ proc start(nimbus: NimbusNode, conf: NimbusConf) =
       nimbus.state = Running
 
 proc stop*(nimbus: NimbusNode, conf: NimbusConf) {.async, gcsafe.} =
-  trace "Graceful shutdown"
   if conf.rpcEnabled:
+    info "nimbus.rpcServer.stop()"
     await nimbus.rpcServer.stop()
-  # nimbus.engineApiServer can be nil if conf.engineApiPort == conf.rpcPort
+
   if conf.engineApiEnabled and nimbus.engineApiServer.isNil.not:
+    info "nimbus.engineApiServer.stop()"
     await nimbus.engineApiServer.stop()
+
   if conf.wsEnabled:
+    info "nimbus.wsRpcServer.stop()"
     nimbus.wsRpcServer.stop()
-  # nimbus.engineApiWsServer can be nil if conf.engineApiWsPort == conf.wsPort
+
   if conf.engineApiWsEnabled and nimbus.engineApiWsServer.isNil.not:
+    info "nimbus.engineApiWsServer.stop()"
     nimbus.engineApiWsServer.stop()
-  if conf.graphqlEnabled:
-    await nimbus.graphqlServer.stop()
+
   if conf.engineSigner != ZERO_ADDRESS:
+    info "nimbus.sealingEngine.stop()"
     await nimbus.sealingEngine.stop()
+  
   if conf.maxPeers > 0:
+    info "nimbus.networkLoop.cancelAndWait()"
     await nimbus.networkLoop.cancelAndWait()
+  
   if nimbus.peerManager.isNil.not:
+    info "nimbus.peerManager.stop()"
     await nimbus.peerManager.stop()
+
   if nimbus.statelessSyncRef.isNil.not:
+    info "nimbus.statelessSyncRef.stop()"
     nimbus.statelessSyncRef.stop()
+  
   if nimbus.snapSyncRef.isNil.not:
+    info "nimbus.snapSyncRef.stop()"
     nimbus.snapSyncRef.stop()
+    
   if nimbus.fullSyncRef.isNil.not:
+    info "nimbus.fullSyncRef.stop()"
     nimbus.fullSyncRef.stop()
 
 proc process*(nimbus: NimbusNode, conf: NimbusConf) =
@@ -472,16 +486,14 @@ proc process*(nimbus: NimbusNode, conf: NimbusConf) =
       debug "Exception in poll()", exc = e.name, err = e.msg
       discard e # silence warning when chronicles not activated
 
-  # Stop loop
+  
   waitFor nimbus.stop(conf)
 
 when isMainModule:
   var nimbus = NimbusNode(state: Starting, ctx: newEthContext())
 
-  ## Ctrl+C handling
   proc controlCHandler() {.noconv.} =
     when defined(windows):
-      # workaround for https://github.com/nim-lang/Nim/issues/4057
       setupForeignThreadGc()
     nimbus.state = Stopping
     echo "\nCtrl+C pressed. Waiting for a graceful shutdown."

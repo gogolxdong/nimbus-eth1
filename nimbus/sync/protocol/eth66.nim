@@ -216,7 +216,8 @@ p2pProtocol eth66(version = ethVersion,
   requestResponse:
     # User message 0x09: GetPooledTransactions.
     proc getPooledTransactions(peer: Peer, txHashes: openArray[Hash256]) =
-      info trEthRecvReceived & "GetPooledTransactions (0x09)", peer, hashes=txHashes.len
+      discard
+      # info trEthRecvReceived & "GetPooledTransactions (0x09)", peer, hashes=txHashes.len
 
       # let ctx = peer.networkState()
       # let txs = ctx.getPooledTxs(txHashes)

@@ -78,8 +78,7 @@ method handleAnnouncedTxs*(ctx: EthWireBase, peer: Peer, txs: openArray[Transact
 method handleAnnouncedTxsHashes*(ctx: EthWireBase, peer: Peer, txHashes: openArray[Hash256]) {.base.} =
   notImplemented("handleAnnouncedTxsHashes")
 
-method handleNewBlockHashes*(ctx: EthWireBase, peer: Peer, hashes: openArray[NewBlockHashesAnnounce])
-    {.base, gcsafe, raises: [CatchableError].} =
+method handleNewBlockHashes*(ctx: EthWireBase, peer: Peer, hashes: openArray[NewBlockHashesAnnounce]) {.base, gcsafe, raises: [CatchableError].} =
   notImplemented("handleNewBlockHashes")
 
 when defined(legacy_eth66_enabled):

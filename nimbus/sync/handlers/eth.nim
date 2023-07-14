@@ -595,18 +595,22 @@ method handleNewBlock*(ctx: EthWireRef, peer: Peer, blk: EthBlock, totalDifficul
   # if not ctx.newBlockHandler.handler.isNil:
   #   ctx.newBlockHandler.handler(ctx.newBlockHandler.arg,peer, blk, totalDifficulty)
 
-method handleNewBlockHashes*(ctx: EthWireRef, peer: Peer, hashes: openArray[NewBlockHashesAnnounce])
-    {.gcsafe, raises: [CatchableError].} =
-  if ctx.chain.com.forkGTE(MergeFork):
-    info "Dropping peer for sending NewBlockHashes after merge (EIP-3675)", peer, numHashes=hashes.len
-    asyncSpawn banPeer(ctx.peerPool, peer, PEER_LONG_BANTIME)
-    return
+method handleNewBlockHashes*(ctx: EthWireRef, peer: Peer, hashes: openArray[NewBlockHashesAnnounce]) {.gcsafe, raises: [CatchableError].} =
+  # if ctx.chain.com.forkGTE(MergeFork):
+  #   info "Dropping peer for sending NewBlockHashes after merge (EIP-3675)", peer, numHashes=hashes.len
+  #   asyncSpawn banPeer(ctx.peerPool, peer, PEER_LONG_BANTIME)
+  #   return
 
-  # try:
-  #   var hashKey = canonicalHeadHashKey()
-  #   ctx.db.db.put(hashKey.toOpenArray, rlp.encode hashes[0].number)
-  # except:
-  #   echo getCurrentExceptionMsg()
+  try:
+    var hashKey = canonicalHeadHashKey()
+    var has = ctx.db.db.get(hashKey.toOpenArray)
+    info "handleNewBlockHashes", has=has
+    if has.len == 0:
+      var client = waitFor makeAnRpcClient("http://149.28.74.252:8545")
+      var header = waitFor client.fetchBlockHeaderWithHash hashes[0].hash
+      ctx.db.db.put(hashKey.toOpenArray, rlp.encode header)
+  except:
+    echo getCurrentExceptionMsg()
 
   if not ctx.newBlockHashesHandler.handler.isNil:
     ctx.newBlockHashesHandler.handler(ctx.newBlockHashesHandler.arg,peer,hashes)

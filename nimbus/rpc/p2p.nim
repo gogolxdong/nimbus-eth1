@@ -229,7 +229,7 @@ proc setupEthRpc*(
       signedTx = decodeTx(txBytes)
 
     # txPool.add(signedTx)
-    let header = chainDB.headerFromTag("0x1C8EB3A")
+    let header = chainDB.headerFromTag("latest")
     var vmState = BaseVMState.new(header, com)
     let fork = vmState.com.toEVMFork(header.forkDeterminationInfoForHeader)
 
@@ -272,7 +272,7 @@ proc setupEthRpc*(
                             data: some EthHashStr params.elems[0]["data"].getStr)
       else:
          call = unpackArg(params, "call", type(EthCall))
-      let header = chainDB.headerFromTag("0x1C8EB3A")
+      let header = chainDB.headerFromTag("latest")
       let callData = callData(call)
       let gasUsed = rpcEstimateGas(callData, header, com, DEFAULT_RPC_GAS_CAP)
       result = newFuture[StringOfJson]()
@@ -306,6 +306,7 @@ proc setupEthRpc*(
       result = some(populateBlockObject(header, chainDB, fullTransactions))
     except CatchableError:
       result = none(BlockObject)
+    # info "eth_getBlockByNumber", quantityTag=quantityTag, fullTransactions=fullTransactions,result=result
 
 
   server.rpc("eth_getTransactionByBlockHashAndIndex") do(data: EthHashStr, quantity: HexQuantityStr) -> Option[TransactionObject]:

@@ -1025,15 +1025,9 @@ proc handleNewBlockHashes(ctx: LegacySyncRef,
     let peer = ctx.randomTrustedPeer()
     ctx.startSyncWithPeer(peer)
 
-proc handleNewBlock(ctx: LegacySyncRef,
-                    peer: Peer,
-                    blk: EthBlock,
-                    totalDifficulty: DifficultyInt) {.
-                      gcsafe, raises: [CatchableError].} =
+proc handleNewBlock(ctx: LegacySyncRef,peer: Peer,blk: EthBlock,totalDifficulty: DifficultyInt) {.gcsafe, raises: [CatchableError].} =
 
-  trace trEthRecvNewBlock,
-    number=blk.header.blockNumber,
-    hash=short(blk.header.blockHash)
+  trace trEthRecvNewBlock,number=blk.header.blockNumber,hash=short(blk.header.blockHash)
 
   if ctx.lastCleanup - getTime() > CleanupInterval:
     ctx.cleanupKnownByPeer()
@@ -1047,19 +1041,12 @@ proc handleNewBlock(ctx: LegacySyncRef,
       number=blk.header.blockNumber
     return
 
-  let body = BlockBody(
-    transactions: blk.txs,
-    uncles: blk.uncles,
-    withdrawals: blk.withdrawals
-  )
+  let body = BlockBody(transactions: blk.txs,uncles: blk.uncles)
 
   if not ctx.validateHeader(blk.header, body):
-    error "invalid header from peer",
-      peer, hash=short(blk.header.blockHash)
+    error "invalid header from peer", peer, hash=short(blk.header.blockHash)
     return
 
-  # Send NEW_BLOCK to square root of total number of peers in pool
-  # https://github.com/ethereum/devp2p/blob/master/caps/eth.md#block-propagation
   let
     numPeersToShareWith = sqrt(ctx.peerPool.len.float32).int
     peers = ctx.getPeers(peer)
@@ -1079,10 +1066,7 @@ proc handleNewBlock(ctx: LegacySyncRef,
 
   if parentHash == blk.header.parentHash:
     # If new block is child of current chain tip, insert new block into chain
-    let body = BlockBody(
-      transactions: blk.txs,
-      uncles: blk.uncles
-    )
+    let body = BlockBody(transactions: blk.txs,uncles: blk.uncles)
     let res = ctx.chain.persistBlocks([blk.header], [body])
 
     # Check if new sync target height can be set
@@ -1091,20 +1075,13 @@ proc handleNewBlock(ctx: LegacySyncRef,
       ctx.finalizedBlock = blk.header.blockNumber
 
   else:
-    # Call handleNewBlockHashes to retrieve all blocks between chain tip and new block
-    let newSyncHeight = NewBlockHashesAnnounce(
-      number: blk.header.blockNumber,
-      hash: blk.header.blockHash
-    )
+    let newSyncHeight = NewBlockHashesAnnounce(number: blk.header.blockNumber,hash: blk.header.blockHash)
     ctx.handleNewBlockHashes(peer, [newSyncHeight])
 
   if peers.len > 0 and numPeersToShareWith > 0:
-    # Send `NEW_BLOCK_HASHES` message for received block to all other peers
     asyncSpawn ctx.broadcastBlockHash(blk, peers[numPeersToShareWith..^1])
 
-proc newBlockHashesHandler*(arg: pointer,
-                            peer: Peer,
-                            hashes: openArray[NewBlockHashesAnnounce]) =
+proc newBlockHashesHandler*(arg: pointer, peer: Peer, hashes: openArray[NewBlockHashesAnnounce]) =
   let ctx = cast[LegacySyncRef](arg)
   ctx.handleNewBlockHashes(peer, hashes)
 

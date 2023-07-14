@@ -99,7 +99,7 @@ proc persistBlocksImpl(c: ChainRef; headers: openArray[BlockHeader];
 
     if NoPersistHeader notin flags:
       # discard c.db.persistHeaderToDb(header, c.com.consensus == ConsensusType.POS, c.com.startOfHistory)
-      discard c.db.persistHeaderToDb(header, c.com.consensus == ConsensusType.POS, header.parentHash)
+      discard c.db.persistHeaderToDb(header, c.com.consensus == ConsensusType.POA, header.parentHash)
 
     if NoSaveTxs notin flags:
       discard c.db.persistTransactions(header.blockNumber, body.transactions)

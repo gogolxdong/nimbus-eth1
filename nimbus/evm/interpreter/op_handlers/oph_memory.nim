@@ -14,7 +14,8 @@ import
   ./oph_helpers,
   eth/common,
   stint,
-  strformat
+  strformat,
+  chronicles
 
 {.push raises: [CatchableError].} # basically the annotation type of a `Vm2OpFn`
 
@@ -193,6 +194,7 @@ const
       when evmc_enabled:
         sstoreEvmc(cpt, slot, newValue)
       else:
+        info "sstoreOp", cpt=cpt.msg.kind
         sstoreImpl(cpt, slot, newValue)
 
 
@@ -301,7 +303,7 @@ const
   tstoreOp: Vm2OpFn = proc (k: var Vm2Ctx) =
     ## 0x5d, Save word to transient storage.
     checkInStaticContext(k.cpt)
-
+    info "tstoreOp", cpt=k.cpt.msg.kind
     let
       slot = k.cpt.stack.popInt()
       val  = k.cpt.stack.popInt()
