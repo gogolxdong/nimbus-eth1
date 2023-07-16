@@ -59,7 +59,6 @@ proc asyncProcessTransactionImpl(
 
   vmState.gasPool -= tx.gasLimit
 
-
   let txRes = roDB.validateTransaction(tx, sender, header.gasLimit, baseFee256, excessDataGas, fork)
   if txRes.isOk:
     vmState.stateDB.clearTransientStorage()

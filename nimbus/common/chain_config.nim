@@ -91,9 +91,9 @@ proc read(rlp: var Rlp, x: var AddressBalance, _: type GenesisAccount): GenesisA
     {.gcsafe, raises: [RlpError].} =
   GenesisAccount(balance: rlp.read(UInt256))
 
-func decodePrealloc*(data: seq[byte]): GenesisAlloc
-    {.gcsafe, raises: [RlpError].} =
+proc decodePrealloc*(data: seq[byte]): GenesisAlloc {.gcsafe, raises: [RlpError].} =
   for tup in rlp.decode(data, seq[AddressBalance]):
+    info "decodePrealloc", tup=tup
     result[tup.address] = tup.account
 
 # borrowed from `lexer.hexCharValue()` :)
@@ -450,6 +450,7 @@ proc chainConfigForNetwork*(id: NetworkId): ChainConfig =
     ChainConfig()
 
 proc genesisBlockForNetwork*(id: NetworkId): Genesis {.gcsafe, raises: [ValueError, RlpError].} =
+  info "genesisBlockForNetwork", id=id
   result = case id
   of Bsc:
     Genesis(
@@ -463,6 +464,8 @@ proc genesisBlockForNetwork*(id: NetworkId): Genesis {.gcsafe, raises: [ValueErr
       gasLimit: 0x2625a00,
       gasUsed: 0,
       difficulty: 1.u256,
+      alloc: decodePrealloc(testnetAllocData)
+
     )
   of MainNet:
     Genesis(
@@ -511,6 +514,7 @@ proc genesisBlockForNetwork*(id: NetworkId): Genesis {.gcsafe, raises: [ValueErr
     Genesis()
 
 proc networkParams*(id: NetworkId): NetworkParams {.gcsafe, raises: [ValueError, RlpError].} =
+  info "networkParams", id=id
   result.genesis = genesisBlockForNetwork(id)
   result.config  = chainConfigForNetwork(id)
 

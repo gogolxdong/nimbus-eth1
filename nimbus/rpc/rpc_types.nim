@@ -47,7 +47,7 @@ type
     maxFeePerGas*: Option[HexQuantityStr]         # (optional) MaxFeePerGas is the maximum fee per gas offered, in wei.
     maxPriorityFeePerGas*: Option[HexQuantityStr] # (optional) MaxPriorityFeePerGas is the maximum miner tip per gas offered, in wei.
     value*: Option[HexQuantityStr]   # (optional) Integer of the value sent with this transaction.
-    data*: Option[EthHashStr]        # (optional) Hash of the method signature and encoded parameters. For details see Ethereum Contract ABI.
+    data*: Option[HexDataStr]        # (optional) Hash of the method signature and encoded parameters. For details see Ethereum Contract ABI.
 
   ## A block object, or null when no block was found
   ## Note that this includes slightly different information from eth/common.BlockHeader

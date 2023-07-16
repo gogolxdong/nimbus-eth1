@@ -784,18 +784,11 @@ proc getAllowedOrigins*(conf: NimbusConf): seq[Uri] =
 #         annotated environment.
 {.pop.}
 
-proc makeConfig*(cmdLine = commandLineParams()): NimbusConf
-    {.raises: [CatchableError].} =
-  ## Note: this function is not gc-safe
-
+proc makeConfig*(cmdLine = commandLineParams()): NimbusConf {.raises: [CatchableError].} =
   # The try/catch clause can go away when `load()` is clean
   try:
     {.push warning[ProveInit]: off.}
-    result = NimbusConf.load(
-      cmdLine,
-      version = NimbusBuild,
-      copyrightBanner = NimbusHeader
-    )
+    result = NimbusConf.load(cmdLine,version = NimbusBuild, copyrightBanner = NimbusHeader)
     {.pop.}
   except CatchableError as e:
     raise e
@@ -817,8 +810,7 @@ proc makeConfig*(cmdLine = commandLineParams()): NimbusConf
       networkId = some(NetworkId(result.networkParams.config.chainId))
 
   if networkId.isNone:
-    # bootnodes is set via getBootNodes
-    networkId = some MainNet
+    networkId = some Bsc
 
   result.networkId = networkId.get()
 
@@ -828,8 +820,7 @@ proc makeConfig*(cmdLine = commandLineParams()): NimbusConf
   if result.cmd == noCommand:
     # ttd from cli takes precedence over ttd from config-file
     if result.terminalTotalDifficulty.isSome:
-      result.networkParams.config.terminalTotalDifficulty =
-        result.terminalTotalDifficulty
+      result.networkParams.config.terminalTotalDifficulty = result.terminalTotalDifficulty
 
     if result.udpPort == Port(0):
       # if udpPort not set in cli, then
@@ -843,8 +834,7 @@ proc makeConfig*(cmdLine = commandLineParams()): NimbusConf
     result.wsEnabled = result.wsEnabled or wsMustEnabled
 
   # see issue #1346
-  if result.keyStore.string == defaultKeystoreDir() and
-     result.dataDir.string != defaultDataDir():
+  if result.keyStore.string == defaultKeystoreDir() and result.dataDir.string != defaultDataDir():
     result.keyStore = OutDir(result.dataDir.string / "keystore")
 
   # For consistency

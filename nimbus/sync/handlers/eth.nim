@@ -14,14 +14,15 @@ import
   ../../core/executor/[process_transaction, process_block],
   ../../evm/[types,state],
   ../../db/[storage_types,accounts_cache, state_db, incomplete_db, distinct_tries],
-  ../../evm/async/data_sources/json_rpc_data_source,
+  ../../evm/async/data_sources/json_rpc_data_source, ../../evm/async/[data_sources, operations],
   ../../stateless_runner,
   ../../transaction/call_evm,
   ../../rpc/rpc_utils,
   ../../transaction,
   ../../tracer
+  
 
-from web3 import eth_getBalance, BlockIdentifier, Address
+from web3 import eth_getBalance, BlockIdentifier, Address, newWeb3, close
   
 
 
@@ -68,6 +69,7 @@ type
     lastCleanup: Time
     newBlockHandler: NewBlockHandlerPair
     newBlockHashesHandler: NewBlockHashesHandlerPair
+    asyncDataSource: AsyncDataSource
 
   ReconnectRef = ref object
     pool: PeerPool
@@ -205,10 +207,7 @@ proc addToKnownByPeer(ctx: EthWireRef, txHashes: openArray[Hash256], peer: Peer)
     if txHash notin map:
       map[txHash] = getTime()
 
-proc addToKnownByPeer(ctx: EthWireRef,
-                      txHashes: openArray[Hash256],
-                      peer: Peer,
-                      newHashes: var seq[Hash256]) =
+proc addToKnownByPeer(ctx: EthWireRef, txHashes: openArray[Hash256], peer: Peer, newHashes: var seq[Hash256]) =
   var map: HashToTime
   ctx.knownByPeer.withValue(peer, val) do:
     map = val[]
@@ -226,9 +225,7 @@ proc addToKnownByPeer(ctx: EthWireRef,
 # Private functions: async workers
 # ------------------------------------------------------------------------------
 
-proc sendNewTxHashes(ctx: EthWireRef,
-                     txHashes: seq[Hash256],
-                     peers: seq[Peer]): Future[void] {.async.} =
+proc sendNewTxHashes(ctx: EthWireRef, txHashes: seq[Hash256], peers: seq[Peer]): Future[void] {.async.} =
   try:
 
     for peer in peers:
@@ -245,12 +242,8 @@ proc sendNewTxHashes(ctx: EthWireRef,
   except CatchableError as e:
     debug "Exception in sendNewTxHashes", exc = e.name, err = e.msg
 
-proc sendTransactions(ctx: EthWireRef,
-                      txHashes: seq[Hash256],
-                      txs: seq[Transaction],
-                      peers: seq[Peer]): Future[void] {.async.} =
+proc sendTransactions(ctx: EthWireRef, txHashes: seq[Hash256], txs: seq[Transaction], peers: seq[Peer]): Future[void] {.async.} =
   try:
-
     for peer in peers:
       # This is used to avoid re-sending along pooledTxHashes
       # announcements/re-broadcasts
@@ -316,15 +309,11 @@ proc onPeerConnected(ctx: EthWireRef, peer: Peer) =
   if txHashes.len == 0:
     return
 
-  debug "announce tx hashes to newly connected peer",
-    number = txHashes.len
-
+  debug "announce tx hashes to newly connected peer", number = txHashes.len
   asyncSpawn ctx.sendNewTxHashes(txHashes, @[peer])
 
 proc onPeerDisconnected(ctx: EthWireRef, peer: Peer) =
-  debug "remove peer from knownByPeer",
-    peer
-
+  debug "remove peer from knownByPeer", peer
   ctx.knownByPeer.del(peer)
 
 proc setupPeerObserver(ctx: EthWireRef) =
@@ -342,17 +331,15 @@ proc setupPeerObserver(ctx: EthWireRef) =
 # Public constructor/destructor
 # ------------------------------------------------------------------------------
 
-proc new*(_: type EthWireRef,
-          chain: ChainRef,
-          txPool: TxPoolRef,
-          peerPool: PeerPool): EthWireRef =
+proc new*(_: type EthWireRef, chain: ChainRef, txPool: TxPoolRef, peerPool: PeerPool, asyncDataSource: AsyncDataSource): EthWireRef =
   let ctx = EthWireRef(
     db: chain.db,
     chain: chain,
     txPool: txPool,
     peerPool: peerPool,
     enableTxPool: Enabled,
-    lastCleanup: getTime())
+    lastCleanup: getTime(),
+    asyncDataSource: asyncDataSource)
   if txPool.isNil:
     ctx.enableTxPool = NotAvailable
     when trMissingOrDisabledGossipOk:
@@ -366,16 +353,10 @@ proc new*(_: type EthWireRef,
 # ------------------------------------------------------------------------------
 
 proc setNewBlockHandler*(ctx: EthWireRef, handler: NewBlockHandler, arg: pointer) =
-  ctx.newBlockHandler = NewBlockHandlerPair(
-    arg: arg,
-    handler: handler
-  )
+  ctx.newBlockHandler = NewBlockHandlerPair(arg: arg, handler: handler)
 
 proc setNewBlockHashesHandler*(ctx: EthWireRef, handler: NewBlockHashesHandler, arg: pointer) =
-  ctx.newBlockHashesHandler = NewBlockHashesHandlerPair(
-    arg: arg,
-    handler: handler
-  )
+  ctx.newBlockHashesHandler = NewBlockHashesHandlerPair(arg: arg, handler: handler)
 
 # ------------------------------------------------------------------------------
 # Public getters/setters
@@ -409,8 +390,7 @@ method getStatus*(ctx: EthWireRef): EthState {.gcsafe, raises: [RlpError,EVMErro
     )
   )
 
-method getReceipts*(ctx: EthWireRef, hashes: openArray[Hash256]): seq[seq[Receipt]]
-    {.gcsafe, raises: [RlpError].} =
+method getReceipts*(ctx: EthWireRef, hashes: openArray[Hash256]): seq[seq[Receipt]] {.gcsafe, raises: [RlpError].} =
   let db = ctx.db
   var header: BlockHeader
   for blockHash in hashes:
@@ -465,18 +445,24 @@ method handleAnnouncedTxs*(ctx: EthWireRef, peer: Peer, txs: openArray[Transacti
     return
   # info "received new transactions", number = txs.len
   try:
-    let header = ctx.chain.currentBlock()
-    # info "handleAnnouncedTxs", parentHash=header.parentHash, headerHash=header.blockHash, txs=txs.len
-    var vmState = BaseVMState.new(header, ctx.chain.com)
+    var header = ctx.chain.currentBlock()
+    var body = ctx.db.getBlockBody(header.blockHash)
+    
+    var asyncOperationFactory = AsyncOperationFactory(maybeDataSource: some(ctx.asyncDataSource))
+    info "handleAnnouncedTxs", parentHash=header.parentHash, headerHash=header.blockHash, txs=txs.len
+    let parentHeader = waitFor ctx.asyncDataSource.fetchBlockHeaderWithHash(header.parentHash)
+
+    let vmState = createVmStateForStatelessMode(ctx.chain.com, header, body, parentHeader, asyncOperationFactory).get
+
     let fork = vmState.com.toEVMFork(header.forkDeterminationInfoForHeader)
-    # let accountDB = newAccountStateDB(ctx.db.db, header.stateRoot, ctx.chain.com.pruneTrie)
-    var client = waitFor makeAnRpcClient("http://149.28.74.252:8545")
+    # var client = waitFor newWeb3("http://149.28.74.252:8545")
+    # defer: waitFor client.close()
 
     for tx in txs:
       var sender = tx.getSender()
-      let (acc, accProof, storageProofs) = waitFor fetchAccountAndSlots(client, sender, @[], header.blockNumber)
+      waitFor vmState.ifNecessaryGetAccount(sender)
 
-      var accBalance = acc.balance
+      # var accBalance = acc.balance
 
       var balance1 = vmState.stateDB.getBalance(sender)
       let accTx = vmState.stateDB.beginSavepoint
@@ -485,22 +471,7 @@ method handleAnnouncedTxs*(ctx: EthWireRef, peer: Peer, txs: openArray[Transacti
       vmState.stateDB.commit(accTx)
       # vmState.stateDB.persist()
       var balance2 = vmState.stateDB.getBalance(sender)
-      info "txCallEvm", txHash = tx.rlpHash, gasBurned=gasBurned, sender=sender, nonce=tx.nonce, gasPrice=tx.gasPrice, gasLimit=tx.gasLimit, accBalance=accBalance, balance1=balance1, balance2=balance2,pruneTrie=ctx.chain.com.pruneTrie
-      populateDbWithBranch(ctx.db.db, accProof)
-      for index, storageProof in storageProofs:
-        echo "index:", index
-        let slot: UInt256 = storageProof.key
-        let fetchedVal: UInt256 = storageProof.value
-        let storageMptNodes: seq[seq[byte]] = storageProof.proof.mapIt(distinctBase(it))
-        let storageVerificationRes = verifyFetchedSlot(acc.storageRoot, slot, fetchedVal, storageMptNodes)
-        let whatAreWeVerifying = ("storage proof", sender, acc, slot, fetchedVal)
-        raiseExceptionIfError(whatAreWeVerifying, storageVerificationRes)
-
-        populateDbWithBranch(ctx.db.db, storageMptNodes)
-        let slotAsKey = createTrieKeyFromSlot(slot)
-        let slotHash = keccakHash(slotAsKey)
-        let slotEncoded = rlp.encode(slot)
-        ctx.db.db.put(slotHashToSlotKey(slotHash.data).toOpenArray, slotEncoded)
+      info "txCallEvm", blockNumber=header.blockNumber.toHex, txHash = tx.rlpHash, gasBurned=gasBurned, sender=sender, nonce=tx.nonce, gasPrice=tx.gasPrice, gasLimit=tx.gasLimit, balance1=balance1, balance2=balance2, pruneTrie=ctx.chain.com.pruneTrie
     
   except:
     echo getCurrentExceptionMsg()
@@ -606,14 +577,15 @@ method handleNewBlockHashes*(ctx: EthWireRef, peer: Peer, hashes: openArray[NewB
     var has = ctx.db.db.get(hashKey.toOpenArray)
     info "handleNewBlockHashes", has=has
     if has.len == 0:
-      var client = waitFor makeAnRpcClient("http://149.28.74.252:8545")
-      var header = waitFor client.fetchBlockHeaderWithHash hashes[0].hash
-      ctx.db.db.put(hashKey.toOpenArray, rlp.encode header)
+      for hash in hashes:
+        var request = BlocksRequest(startBlock: HashOrNum(isHash: true, hash: hash.hash), maxResults: 1, skip: 0, reverse: false)
+        var header = waitFor peer.getBlockHeaders(request)
+        ctx.db.db.put(hashKey.toOpenArray, rlp.encode header)
   except:
     echo getCurrentExceptionMsg()
 
-  if not ctx.newBlockHashesHandler.handler.isNil:
-    ctx.newBlockHashesHandler.handler(ctx.newBlockHashesHandler.arg,peer,hashes)
+  # if not ctx.newBlockHashesHandler.handler.isNil:
+  #   ctx.newBlockHashesHandler.handler(ctx.newBlockHashesHandler.arg, peer, hashes)
 
 when defined(legacy_eth66_enabled):
   method getStorageNodes*(ctx: EthWireRef, hashes: openArray[Hash256]): seq[Blob] {.gcsafe.} =

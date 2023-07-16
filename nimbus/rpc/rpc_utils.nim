@@ -135,8 +135,7 @@ proc callData*(call: EthCall): RpcCallData {.gcsafe, raises: [ValueError].} =
   optionalU256(call.value, result.value)
   optionalBytes(call.data, result.data)
 
-proc populateTransactionObject*(tx: Transaction, header: BlockHeader, txIndex: int): TransactionObject
-    {.gcsafe, raises: [ValidationError].} =
+proc populateTransactionObject*(tx: Transaction, header: BlockHeader, txIndex: int): TransactionObject {.gcsafe, raises: [ValidationError].} =
   result.blockHash = some(header.hash)
   result.blockNumber = some(encodeQuantity(header.blockNumber))
   result.`from` = tx.getSender()
@@ -152,8 +151,7 @@ proc populateTransactionObject*(tx: Transaction, header: BlockHeader, txIndex: i
   result.r = encodeQuantity(tx.R)
   result.s = encodeQuantity(tx.S)
 
-proc populateBlockObject*(header: BlockHeader, chain: ChainDBRef, fullTx: bool, isUncle = false): BlockObject
-    {.gcsafe, raises: [CatchableError].} =
+proc populateBlockObject*(header: BlockHeader, chain: ChainDBRef, fullTx: bool, isUncle = false): BlockObject {.gcsafe, raises: [CatchableError].} =
   let blockHash = header.blockHash
 
   result.number = some(encodeQuantity(header.blockNumber))

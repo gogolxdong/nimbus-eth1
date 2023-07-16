@@ -37,6 +37,7 @@ proc toGenesisHeader*(
   sdb.db.put(emptyRlpHash.data, emptyRlp)
 
   for address, account in g.alloc:
+    info "toGenesisHeader", address=address, account=account
     sdb.setAccount(address, newAccount(account.nonce, account.balance))
     sdb.setCode(address, account.code)
 

@@ -21,8 +21,7 @@ logScope:
 # Private functions
 # ------------------------------------------------------------------------------
 
-proc selectVM(c: Computation, fork: EVMFork, shouldPrepareTracer: bool)
-    {.gcsafe, raises: [CatchableError].} =
+proc selectVM(c: Computation, fork: EVMFork, shouldPrepareTracer: bool) {.gcsafe, raises: [CatchableError].} =
   ## Op code execution handler main loop.
   var desc: Vm2Ctx
   desc.cpt = c
@@ -40,7 +39,6 @@ proc selectVM(c: Computation, fork: EVMFork, shouldPrepareTracer: bool)
 
   while true:
     c.instr = c.code.next()
-
     # Note Mamy's observation in opTableToCaseStmt() from original VM
     # regarding computed goto
     #

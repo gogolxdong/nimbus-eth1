@@ -149,23 +149,19 @@ p2pProtocol eth66(version = ethVersion,
     # User message 0x03: GetBlockHeaders.
     proc getBlockHeaders(peer: Peer, request: BlocksRequest) =
       when trEthTracePacketsOk:
-        info trEthRecvReceived & "GetBlockHeaders (0x03)", peer,
-          count=request.maxResults
+        info trEthRecvReceived & "GetBlockHeaders (0x03)", peer, count=request.maxResults
 
       if request.maxResults > uint64(maxHeadersFetch):
-        debug "GetBlockHeaders (0x03) requested too many headers",
-          peer, requested=request.maxResults, max=maxHeadersFetch
+        debug "GetBlockHeaders (0x03) requested too many headers", peer, requested=request.maxResults, max=maxHeadersFetch
         await peer.disconnect(BreachOfProtocol)
         return
 
       let ctx = peer.networkState()
       let headers = ctx.getBlockHeaders(request)
       if headers.len > 0:
-        info trEthSendReplying & "with BlockHeaders (0x04)", peer,
-          sent=headers.len, requested=request.maxResults
+        info trEthSendReplying & "with BlockHeaders (0x04)", peer, sent=headers.len, requested=request.maxResults
       else:
-        info trEthSendReplying & "EMPTY BlockHeaders (0x04)", peer,
-          sent=0, requested=request.maxResults
+        info trEthSendReplying & "EMPTY BlockHeaders (0x04)", peer, sent=0, requested=request.maxResults
 
       await response.send(headers)
 

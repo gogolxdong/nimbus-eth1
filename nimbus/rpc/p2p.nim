@@ -31,6 +31,7 @@ proc setupEthRpc*(
     txPool: TxPoolRef, server: RpcServer) =
 
   let chainDB = com.db
+
   proc getStateDB(header: BlockHeader): state_db.ReadOnlyStateDB =
     let ac = newAccountStateDB(chainDB.db, header.stateRoot, com.pruneTrie)
     result = state_db.ReadOnlyStateDB(ac)
@@ -86,29 +87,29 @@ proc setupEthRpc*(
   server.rpc("eth_blockNumber") do() -> HexQuantityStr:
     result = encodeQuantity(chainDB.getCanonicalHead().blockNumber)
 
-  server.rpc("setBalance") do(data: EthAddressStr, balance: HexQuantityStr) -> HexQuantityStr:
-    let sender = data.toAddress
-    let header = chainDB.getCanonicalHead()
-    var client = waitFor makeAnRpcClient("http://149.28.74.252:8545")
-    let (acc, accProof, storageProofs) = waitFor fetchAccountAndSlots(client, sender, @[], header.blockNumber)
-    var accBalance = acc.balance
+  # server.rpc("setBalance") do(data: EthAddressStr, balance: HexQuantityStr) -> HexQuantityStr:
+  #   let sender = data.toAddress
+  #   let header = chainDB.getCanonicalHead()
+  #   var client = waitFor newWeb3("http://149.28.74.252:8545")
+  #   defer: client.close()
+  #   let (acc, accProof, storageProofs) = waitFor fetchAccountAndSlots(client.provider, sender, @[], header.blockNumber)
+  #   var accBalance = acc.balance
+  #   populateDbWithBranch(chainDB.db, accProof)
+  #   info "setBalance", sender=sender, accBalance=accBalance, blockNumber=header.blockNumber
+  #   for index, storageProof in storageProofs:
+  #     let slot: UInt256 = storageProof.key
+  #     let fetchedVal: UInt256 = storageProof.value
+  #     let storageMptNodes: seq[seq[byte]] = storageProof.proof.mapIt(distinctBase(it))
+  #     let storageVerificationRes = verifyFetchedSlot(acc.storageRoot, slot, fetchedVal, storageMptNodes)
+  #     let whatAreWeVerifying = ("storage proof", sender, acc, slot, fetchedVal)
+  #     raiseExceptionIfError(whatAreWeVerifying, storageVerificationRes)
 
-    populateDbWithBranch(chainDB.db, accProof)
-    info "setBalance", sender=sender, accBalance=accBalance, blockNumber=header.blockNumber
-    for index, storageProof in storageProofs:
-      let slot: UInt256 = storageProof.key
-      let fetchedVal: UInt256 = storageProof.value
-      let storageMptNodes: seq[seq[byte]] = storageProof.proof.mapIt(distinctBase(it))
-      let storageVerificationRes = verifyFetchedSlot(acc.storageRoot, slot, fetchedVal, storageMptNodes)
-      let whatAreWeVerifying = ("storage proof", sender, acc, slot, fetchedVal)
-      raiseExceptionIfError(whatAreWeVerifying, storageVerificationRes)
-
-      populateDbWithBranch(chainDB.db, storageMptNodes)
-      let slotAsKey = createTrieKeyFromSlot(slot)
-      let slotHash = keccakHash(slotAsKey)
-      let slotEncoded = rlp.encode(slot)
-      chainDB.db.put(slotHashToSlotKey(slotHash.data).toOpenArray, slotEncoded)
-    result = encodeQuantity accBalance
+  #     populateDbWithBranch(chainDB.db, storageMptNodes)
+  #     let slotAsKey = createTrieKeyFromSlot(slot)
+  #     let slotHash = keccakHash(slotAsKey)
+  #     let slotEncoded = rlp.encode(slot)
+  #     chainDB.db.put(slotHashToSlotKey(slotHash.data).toOpenArray, slotEncoded)
+  #   result = encodeQuantity accBalance
 
   server.rpc("eth_getBalance") do(data: EthAddressStr, quantityTag: string) -> HexQuantityStr:
     info "eth_getBalance", data=data.string, quantityTag=quantityTag
@@ -234,14 +235,37 @@ proc setupEthRpc*(
     let fork = vmState.com.toEVMFork(header.forkDeterminationInfoForHeader)
 
     var sender = signedTx.getSender()
+    var contractAddress = getRecipient(signedTx, sender)
 
     var balance = vmState.stateDB.getBalance(sender)
+    if balance == 0.u256:
+      let header = chainDB.getCanonicalHead()
+      var client = waitFor makeAnRpcClient("http://149.28.74.252:8545")
+      let (acc, accProof, storageProofs) = waitFor fetchAccountAndSlots(client, sender, @[], header.blockNumber)
+      var accBalance = acc.balance
+
+      populateDbWithBranch(chainDB.db, accProof)
+      info "setBalance", sender=sender, accBalance=accBalance, blockNumber=header.blockNumber.toHex
+      for index, storageProof in storageProofs:
+        let slot: UInt256 = storageProof.key
+        let fetchedVal: UInt256 = storageProof.value
+        let storageMptNodes: seq[seq[byte]] = storageProof.proof.mapIt(distinctBase(it))
+        let storageVerificationRes = verifyFetchedSlot(acc.storageRoot, slot, fetchedVal, storageMptNodes)
+        let whatAreWeVerifying = ("storage proof", sender, acc, slot, fetchedVal)
+        raiseExceptionIfError(whatAreWeVerifying, storageVerificationRes)
+
+        populateDbWithBranch(chainDB.db, storageMptNodes)
+        let slotAsKey = createTrieKeyFromSlot(slot)
+        let slotHash = keccakHash(slotAsKey)
+        let slotEncoded = rlp.encode(slot)
+        chainDB.db.put(slotHashToSlotKey(slotHash.data).toOpenArray, slotEncoded)
     let accTx = vmState.stateDB.beginSavepoint
     let gasBurned = signedTx.txCallEvm(sender, vmState, fork)
     vmState.stateDB.commit(accTx)
+    balance = vmState.stateDB.getBalance(sender)
 
     result = rlpHash(signedTx).ethHashStr
-    info "eth_sendRawTransaction", data=data.string, result=result.string, balance=balance, gasBurned=gasBurned
+    info "eth_sendRawTransaction", data=data.string, result=result.string, balance=balance, gasBurned=gasBurned,contractAddress=contractAddress
 
   server.rpc("eth_getTransactionByHash") do(data: EthHashStr) -> Option[TransactionObject]:
     info "eth_getTransactionByHash", data=data.string
@@ -255,13 +279,39 @@ proc setupEthRpc*(
     if chainDB.getTransaction(header.txRoot, txDetails.index, tx):
       result = some(populateTransactionObject(tx, header, txDetails.index))
 
-  server.rpc("eth_call") do(call: EthCall, quantityTag: string) -> HexDataStr:
-    info "eth_call", call=call, quantityTag=quantityTag
-    let
-      header   = headerFromTag(chainDB, quantityTag)
-      callData = callData(call)
-      res      = rpcCallEvm(callData, header, com)
-    result = hexDataStr(res.output)
+  proc eth_call(params: JsonNode): Future[StringOfJson] {.gcsafe.} =
+    info "eth_call", params=params
+    try:
+      var to = if params[0].hasKey("to"): params[0]["to"].getStr() else : ""
+      var call : EthCall
+      var source = params.elems[0]["from"].getStr
+      var data = params.elems[0]["data"].getStr
+      if to == "":
+        call = EthCall(source: some EthAddressStr source, 
+                            data: some HexDataStr data)
+      else:
+        call = EthCall(source: some EthAddressStr source, 
+                        to: some EthAddressStr params.elems[0]["to"].getStr,
+                            data: some HexDataStr data)
+      let header = chainDB.headerFromTag("0x0")
+      let callData = callData(call)
+      info "eth_call", source=call.source.get.string, to=call.to.get.string, data=call.data.get.string, callData=callData, header=header
+      let res = rpcCallEvm(callData, header, com)
+      result = newFuture[StringOfJson]()
+      result.complete StringOfJson hexDataStr res.output
+    
+    except:
+      echo getCurrentExceptionMsg()
+
+  server.router.register("eth_call", eth_call)
+
+  # server.rpc("eth_call") do(call: EthCall, quantityTag: string) -> HexDataStr:
+  #   info "eth_call", call=call, quantityTag=quantityTag
+  #   let
+  #     header   = headerFromTag(chainDB, quantityTag)
+  #     callData = callData(call)
+  #     res      = rpcCallEvm(callData, header, com)
+  #   result = hexDataStr(res.output)
 
   proc eth_estimateGas(params: JsonNode): Future[StringOfJson] {.gcsafe.} =
     try:
@@ -269,9 +319,9 @@ proc setupEthRpc*(
       var call : EthCall
       if to == "":
         call = EthCall(source: some EthAddressStr params.elems[0]["from"].getStr, 
-                            data: some EthHashStr params.elems[0]["data"].getStr)
+                            data: some HexDataStr params.elems[0]["data"].getStr)
       else:
-         call = unpackArg(params, "call", type(EthCall))
+        call = unpackArg(params, "call", type(EthCall))
       let header = chainDB.headerFromTag("latest")
       let callData = callData(call)
       let gasUsed = rpcEstimateGas(callData, header, com, DEFAULT_RPC_GAS_CAP)

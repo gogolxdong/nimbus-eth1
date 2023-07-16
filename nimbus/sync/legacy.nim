@@ -1,16 +1,5 @@
-# nim-eth
-# Copyright (c) 2018-2022 Status Research & Development GmbH
-# Licensed and distributed under either of
-#   * MIT license (license terms in the root directory or at
-#     https://opensource.org/licenses/MIT).
-#   * Apache v2 license (license terms in the root directory or at
-#     https://www.apache.org/licenses/LICENSE-2.0).
-# at your option. This file may not be copied, modified, or distributed
-# except according to those terms.
-
 import
-  std/[sets, options, random,
-    hashes, sequtils, math, tables, times],
+  std/[sets, options, random, hashes, sequtils, math, tables, times],
   chronicles,
   chronos,
   eth/p2p,
@@ -29,8 +18,7 @@ logScope:
   topics = "legacy-sync"
 
 const
-  minPeersToStartSync* = 2 # Wait for consensus of at least this
-                           # number of peers before syncing
+  minPeersToStartSync* = 2 
   CleanupInterval = initDuration(minutes = 20)
 
 type
@@ -561,16 +549,13 @@ proc getBestBlockNumber(p: Peer): Future[BlockNumber] {.async.} =
     skip: 0,
     reverse: true)
 
-  trace trEthSendSendingGetBlockHeaders, peer=p,
-    startBlock=request.startBlock.hash.toHex, max=request.maxResults
+  trace trEthSendSendingGetBlockHeaders, peer=p, startBlock=request.startBlock.hash.toHex, max=request.maxResults
   let latestBlock = await p.getBlockHeaders(request)
 
   if latestBlock.isSome:
     if latestBlock.get.headers.len > 0:
       result = latestBlock.get.headers[0].blockNumber
-    trace trEthRecvReceivedBlockHeaders, peer=p,
-      count=latestBlock.get.headers.len,
-      blockNumber=(if latestBlock.get.headers.len > 0: $result else: "missing")
+    trace trEthRecvReceivedBlockHeaders, peer=p, count=latestBlock.get.headers.len, blockNumber=(if latestBlock.get.headers.len > 0: $result else: "missing")
 
 proc toRequest(workItem: WantedBlocks): BlocksRequest =
   if workItem.isHash:
@@ -884,9 +869,7 @@ proc startSyncWithPeer(ctx: LegacySyncRef, peer: Peer) =
     debug "Exception in startSyncWithPeer()", exc = e.name, err = e.msg
 
 proc startObtainBlocks(ctx: LegacySyncRef, peer: Peer) =
-  # simpler version of startSyncWithPeer
   try:
-
     ctx.busyPeers.incl(peer)
     let f = ctx.obtainBlocksFromPeer(peer)
     f.callback = proc(data: pointer) {.gcsafe.} =
@@ -917,8 +900,7 @@ proc onPeerDisconnected(ctx: LegacySyncRef, p: Peer) =
 # Public constructor/destructor
 # ------------------------------------------------------------------------------
 
-proc new*(T: type LegacySyncRef; ethNode: EthereumNode; chain: ChainRef): T
-    {.gcsafe, raises:[CatchableError].} =
+proc new*(T: type LegacySyncRef; ethNode: EthereumNode; chain: ChainRef): T {.gcsafe, raises:[CatchableError].} =
   result = LegacySyncRef(
     # workQueue:           n/a
     # endBlockNumber:      n/a
@@ -931,10 +913,6 @@ proc new*(T: type LegacySyncRef; ethNode: EthereumNode; chain: ChainRef): T
   chain.com.syncCurrent = chain.db.getCanonicalHead().blockNumber
 
 proc start*(ctx: LegacySyncRef) =
-  ## Code for the fast blockchain sync procedure:
-  ##   <https://github.com/ethereum/wiki/wiki/Parallel-Block-Downloads>_
-  ##   <https://github.com/ethereum/go-ethereum/pull/1889__
-
   try:
     var blockHash: Hash256
     let
@@ -973,12 +951,9 @@ proc start*(ctx: LegacySyncRef) =
 # Public procs: eth wire protocol handlers
 # ------------------------------------------------------------------------------
 
-proc handleNewBlockHashes(ctx: LegacySyncRef,
-                          peer: Peer,
-                          hashes: openArray[NewBlockHashesAnnounce]) =
+proc handleNewBlockHashes(ctx: LegacySyncRef, peer: Peer, hashes: openArray[NewBlockHashesAnnounce]) =
 
-  trace trEthRecvNewBlockHashes,
-    numHash=hashes.len
+  trace trEthRecvNewBlockHashes, numHash=hashes.len
 
   if hashes.len == 0:
     return
@@ -1000,21 +975,16 @@ proc handleNewBlockHashes(ctx: LegacySyncRef,
       peer
     return
 
-  # don't send back hashes to this peer
   for val in hashes:
     discard ctx.addToKnownByPeer(val.hash, peer)
 
-  # set new sync target, + 1'u means including last block
   let numBlocks = (number - hashes[0].number).truncate(uint) + 1'u
   ctx.appendWorkItem(hashes[0].hash, hashes[0].number, numBlocks)
   ctx.endBlockNumber = number
   trace "New sync target height", number
 
   if ctx.busyPeers.len > 0:
-    # do nothing. busy peers will keep syncing
-    # until new sync target reached
-    trace "sync using busyPeers",
-      len=ctx.busyPeers.len
+    trace "sync using busyPeers", len=ctx.busyPeers.len
     return
 
   if ctx.trustedPeers.len == 0:
@@ -1026,7 +996,6 @@ proc handleNewBlockHashes(ctx: LegacySyncRef,
     ctx.startSyncWithPeer(peer)
 
 proc handleNewBlock(ctx: LegacySyncRef,peer: Peer,blk: EthBlock,totalDifficulty: DifficultyInt) {.gcsafe, raises: [CatchableError].} =
-
   trace trEthRecvNewBlock,number=blk.header.blockNumber,hash=short(blk.header.blockHash)
 
   if ctx.lastCleanup - getTime() > CleanupInterval:
@@ -1051,17 +1020,14 @@ proc handleNewBlock(ctx: LegacySyncRef,peer: Peer,blk: EthBlock,totalDifficulty:
     numPeersToShareWith = sqrt(ctx.peerPool.len.float32).int
     peers = ctx.getPeers(peer)
 
-  debug "num peers to share with",
-    number=numPeersToShareWith,
-    numPeers=peers.len
+  debug "num peers to share with", number=numPeersToShareWith, numPeers=peers.len
 
   if peers.len > 0 and numPeersToShareWith > 0:
     asyncSpawn ctx.broadcastBlock(blk, peers[0..<numPeersToShareWith])
 
   var parentHash: Hash256
   if not ctx.chain.db.getBlockHash(ctx.finalizedBlock, parentHash):
-    error "failed to get parent hash",
-      number=ctx.finalizedBlock
+    error "failed to get parent hash", number=ctx.finalizedBlock
     return
 
   if parentHash == blk.header.parentHash:

@@ -204,7 +204,7 @@ proc incNonce*(db: AccountStateDB, address: EthAddress) {.inline.} =
 
 proc setCode*(db: AccountStateDB, address: EthAddress, code: openArray[byte]) =
   var account = db.getAccount(address)
-  info "setCode", address=address
+  info "setCode", address=address, code=code
 
   let
     newCodeHash = keccakHash(code)

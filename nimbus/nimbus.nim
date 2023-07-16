@@ -1,18 +1,9 @@
-# Nimbus
-# Copyright (c) 2018 Status Research & Development GmbH
-# Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-# at your option.
-# This file may not be copied, modified, or distributed except according to
-# those terms.
-
 import
   ../nimbus/vm_compile_info
 
 import
   std/[os, strutils, net],
-  chronicles,
+  chronicles, web3,
   chronos,
   eth/[keys, net/nat],
   eth/p2p as eth_p2p,
@@ -49,7 +40,7 @@ type
     engineApiWsServer: RpcWebSocketServer
     ethNode: EthereumNode
     state: NimbusState
-    graphqlServer: GraphqlHttpServerRef
+    # graphqlServer: GraphqlHttpServerRef
     wsRpcServer: RpcWebSocketServer
     sealingEngine: SealingEngineRef
     ctx: EthContext
@@ -96,16 +87,23 @@ proc manageAccounts(nimbus: NimbusNode, conf: NimbusConf) =
       fatal "Import private key error", msg = res.error()
       quit(QuitFailure)
 
-proc setupP2P(nimbus: NimbusNode, conf: NimbusConf,
-              protocols: set[ProtocolFlag]) =
-  ## Creating P2P Server
+
+proc maybeStatelessAsyncDataSource*(nimbus: NimbusNode, conf: NimbusConf): Option[AsyncDataSource] =
+  if conf.syncMode == SyncMode.Stateless:
+    let client = waitFor newWeb3(conf.statelessModeDataSourceUrl)
+    let asyncDataSource = realAsyncDataSource(nimbus.ethNode.peerPool, client.provider, false)
+    some(asyncDataSource)
+  else:
+    none[AsyncDataSource]()
+
+proc setupP2P(nimbus: NimbusNode, conf: NimbusConf, protocols: set[ProtocolFlag]) =
   let kpres = nimbus.ctx.getNetKeys(conf.netKey, conf.dataDir.string)
   if kpres.isErr:
     fatal "Get network keys error", msg = kpres.error
     quit(QuitFailure)
 
   let keypair = kpres.get()
-  var address = Address(
+  var address = enode.Address(
     ip: conf.listenAddress,
     tcpPort: conf.tcpPort,
     udpPort: conf.udpPort
@@ -138,14 +136,12 @@ proc setupP2P(nimbus: NimbusNode, conf: NimbusConf,
     bindIp = conf.listenAddress,
     rng = nimbus.ctx.rng)
 
+  let maybeAsyncDataSource = maybeStatelessAsyncDataSource(nimbus, conf)
   # Add protocol capabilities based on protocol flags
   for w in protocols:
     case w: # handle all possibilities
     of ProtocolFlag.Eth:
-      nimbus.ethNode.addEthHandlerCapability(
-        nimbus.ethNode.peerPool,
-        nimbus.chainRef,
-        nimbus.txPool)
+      nimbus.ethNode.addEthHandlerCapability(nimbus.ethNode.peerPool, nimbus.chainRef, nimbus.txPool, maybeAsyncDataSource.get)
     of ProtocolFlag.Les:
       nimbus.ethNode.addCapability les
     of ProtocolFlag.Snap:
@@ -154,9 +150,7 @@ proc setupP2P(nimbus: NimbusNode, conf: NimbusConf,
         nimbus.chainRef)
   # Cannot do without minimal `eth` capability
   if ProtocolFlag.Eth notin protocols:
-    nimbus.ethNode.addEthHandlerCapability(
-      nimbus.ethNode.peerPool,
-      nimbus.chainRef)
+    nimbus.ethNode.addEthHandlerCapability(nimbus.ethNode.peerPool,nimbus.chainRef, nil, maybeAsyncDataSource.get)
 
   # Early-initialise "--snap-sync" before starting any network connections.
   block:
@@ -172,8 +166,7 @@ proc setupP2P(nimbus: NimbusNode, conf: NimbusConf,
     of SyncMode.Snap:
       # Minimal capability needed for sync only
       if ProtocolFlag.Snap notin protocols:
-        nimbus.ethNode.addSnapHandlerCapability(
-          nimbus.ethNode.peerPool)
+        nimbus.ethNode.addSnapHandlerCapability(nimbus.ethNode.peerPool)
       nimbus.snapSyncRef = SnapSyncRef.init(
         nimbus.ethNode, nimbus.chainRef, nimbus.ctx.rng, conf.maxPeers,
         nimbus.dbBackend, tickerOK, exCtrlFile)
@@ -181,8 +174,7 @@ proc setupP2P(nimbus: NimbusNode, conf: NimbusConf,
       # FIXME-Adam: what needs to go here?
       nimbus.statelessSyncRef = StatelessSyncRef.init()
     of SyncMode.Default:
-      nimbus.legaSyncRef = LegacySyncRef.new(
-        nimbus.ethNode, nimbus.chainRef)
+      nimbus.legaSyncRef = LegacySyncRef.new(nimbus.ethNode, nimbus.chainRef)
 
   # Connect directly to the static nodes
   let staticPeers = conf.getStaticPeers()
@@ -208,17 +200,7 @@ proc setupP2P(nimbus: NimbusNode, conf: NimbusConf,
       waitForPeers = waitForPeers)
 
 
-
-proc maybeStatelessAsyncDataSource*(nimbus: NimbusNode, conf: NimbusConf): Option[AsyncDataSource] =
-  if conf.syncMode == SyncMode.Stateless:
-    let rpcClient = waitFor(makeAnRpcClient(conf.statelessModeDataSourceUrl))
-    let asyncDataSource = realAsyncDataSource(nimbus.ethNode.peerPool, rpcClient, false)
-    some(asyncDataSource)
-  else:
-    none[AsyncDataSource]()
-
-proc localServices(nimbus: NimbusNode, conf: NimbusConf,
-                   com: CommonRef, protocols: set[ProtocolFlag]) =
+proc localServices(nimbus: NimbusNode, conf: NimbusConf, com: CommonRef, protocols: set[ProtocolFlag]) =
   if conf.logMetricsEnabled:
     var logMetrics: proc(udata: pointer) {.gcsafe, raises: [].}
     logMetrics = proc(udata: pointer) =
@@ -283,12 +265,9 @@ proc localServices(nimbus: NimbusNode, conf: NimbusConf,
                 else:
                   @[wsCorsHook]
 
-    # Construct server object
     nimbus.wsRpcServer = newRpcWebSocketServer(
       initTAddress(conf.wsAddress, conf.wsPort),
       authHooks = hooks,
-      # yuck, we should remove this ugly cast when
-      # we fix nim-websock
       rng = cast[ws.Rng](nimbus.ctx.rng)
     )
     setupCommonRpc(nimbus.ethNode, conf, nimbus.wsRpcServer)
@@ -303,22 +282,20 @@ proc localServices(nimbus: NimbusNode, conf: NimbusConf,
 
     nimbus.wsRpcServer.start()
 
-  if conf.graphqlEnabled:
-    nimbus.graphqlServer = setupGraphqlHttpServer(
-      conf,
-      com,
-      nimbus.ethNode,
-      nimbus.txPool,
-      @[httpCorsHook]
-    )
-    nimbus.graphqlServer.start()
+  # if conf.graphqlEnabled:
+  #   nimbus.graphqlServer = setupGraphqlHttpServer(
+  #     conf,
+  #     com,
+  #     nimbus.ethNode,
+  #     nimbus.txPool,
+  #     @[httpCorsHook]
+  #   )
+  #   nimbus.graphqlServer.start()
 
   if conf.engineSigner != ZERO_ADDRESS:
     let res = nimbus.ctx.am.getAccount(conf.engineSigner)
     if res.isErr:
-      error "Failed to get account",
-         msg = res.error,
-         hint = "--key-store or --import-key"
+      error "Failed to get account", msg = res.error, hint = "--key-store or --import-key"
       quit(QuitFailure)
 
     let rs = validateSealer(conf, nimbus.ctx, nimbus.chainRef)
@@ -341,17 +318,15 @@ proc localServices(nimbus: NimbusNode, conf: NimbusConf,
   var initialState = EngineStopped
   if com.forkGTE(MergeFork):
      initialState = EnginePostMerge
-  nimbus.sealingEngine = SealingEngineRef.new(
-    nimbus.chainRef, nimbus.ctx, conf.engineSigner,
-    nimbus.txPool, initialState
-  )
+  nimbus.sealingEngine = SealingEngineRef.new(nimbus.chainRef, nimbus.ctx, conf.engineSigner, nimbus.txPool, initialState)
 
   # only run sealing engine if there is a signer
   if conf.engineSigner != ZERO_ADDRESS:
     nimbus.sealingEngine.start()
 
+  let maybeAsyncDataSource = maybeStatelessAsyncDataSource(nimbus, conf)
+
   if conf.engineApiEnabled:
-    let maybeAsyncDataSource = maybeStatelessAsyncDataSource(nimbus, conf)
     if conf.engineApiPort != conf.rpcPort:
       nimbus.engineApiServer = newRpcHttpServer(
         [initTAddress(conf.engineApiAddress, conf.engineApiPort)],
@@ -366,7 +341,6 @@ proc localServices(nimbus: NimbusNode, conf: NimbusConf,
     info "Starting engine API server", port = conf.engineApiPort
 
   if conf.engineApiWsEnabled:
-    let maybeAsyncDataSource = maybeStatelessAsyncDataSource(nimbus, conf)
     if conf.engineApiWsPort != conf.wsPort:
       nimbus.engineApiWsServer = newRpcWebSocketServer(
         initTAddress(conf.engineApiWsAddress, conf.engineApiWsPort),
@@ -399,11 +373,7 @@ proc start(nimbus: NimbusNode, conf: NimbusConf) =
   createDir(string conf.dataDir)
   nimbus.dbBackend = newChainDB(string conf.dataDir)
   let trieDB = trieDB nimbus.dbBackend
-  let com = CommonRef.new(trieDB,
-    conf.pruneMode == PruneMode.Full,
-    conf.networkId,
-    conf.networkParams
-    )
+  let com = CommonRef.new(trieDB, conf.pruneMode == PruneMode.Full, conf.networkId, conf.networkParams)
 
   com.initializeEmptyDb()
   let protocols = conf.getProtocolFlags()
@@ -429,6 +399,7 @@ proc start(nimbus: NimbusNode, conf: NimbusConf) =
         nimbus.fullSyncRef.start
       of SyncMode.Stateless:
         nimbus.statelessSyncRef.start
+        nimbus.ethNode.setEthHandlerNewBlocksAndHashes(legacy.newBlockHandler,legacy.newBlockHashesHandler,cast[pointer](nimbus.legaSyncRef))
       of SyncMode.Snap:
         nimbus.snapSyncRef.start
 
@@ -485,8 +456,6 @@ proc process*(nimbus: NimbusNode, conf: NimbusConf) =
     except CatchableError as e:
       debug "Exception in poll()", exc = e.name, err = e.msg
       discard e # silence warning when chronicles not activated
-
-  
   waitFor nimbus.stop(conf)
 
 when isMainModule:

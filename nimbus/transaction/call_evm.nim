@@ -70,8 +70,7 @@ proc toCallParams(vmState: BaseVMState, cd: RpcCallData,
     versionedHashes:cd.versionedHashes
   )
 
-proc rpcCallEvm*(call: RpcCallData, header: BlockHeader, com: CommonRef): CallResult
-    {.gcsafe, raises: [CatchableError].} =
+proc rpcCallEvm*(call: RpcCallData, header: BlockHeader, com: CommonRef): CallResult {.gcsafe, raises: [CatchableError].} =
   const globalGasCap = 0 # TODO: globalGasCap should configurable by user
   let topHeader = BlockHeader(
     parentHash: header.blockHash,

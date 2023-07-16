@@ -127,13 +127,7 @@ proc procBlkEpilogue(vmState: BaseVMState;
 # Public functions
 # ------------------------------------------------------------------------------
 
-proc processBlockNotPoA*(
-    vmState: BaseVMState; ## Parent environment of header/body block
-    header:  BlockHeader; ## Header/body block to add to the blockchain
-    body:    BlockBody): ValidationResult
-    {.gcsafe, raises: [CatchableError].} =
-  ## Processes `(header,body)` pair for a non-PoA network, only. This function
-  ## will fail when applied to a PoA network like `Goerli`.
+proc processBlockNotPoA*(vmState: BaseVMState; header:  BlockHeader; body:    BlockBody): ValidationResult {.gcsafe, raises: [CatchableError].} =
   
   if vmState.com.consensus == ConsensusType.POA:
     info "Unsupported PoA request"

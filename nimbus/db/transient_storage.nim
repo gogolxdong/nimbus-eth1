@@ -1,17 +1,4 @@
-# Nimbus
-# Copyright (c) 2023 Status Research & Development GmbH
-# Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or
-#    http://www.apache.org/licenses/LICENSE-2.0)
-#  * MIT license ([LICENSE-MIT](LICENSE-MIT) or
-#    http://opensource.org/licenses/MIT)
-# at your option. This file may not be copied, modified, or distributed except
-# according to those terms.
-
-import
-  tables,
-  stint,
-  eth/common
+import tables, stint, eth/common, chronicles
 
 type
   StorageTable = ref object
@@ -49,8 +36,8 @@ func getStorage*(ac: TransientStorage,
   do:
     return (false, 0.u256)
 
-proc setStorage*(ac: var TransientStorage,
-                 address: EthAddress, slot, value: UInt256) =
+proc setStorage*(ac: var TransientStorage, address: EthAddress, slot, value: UInt256) =
+  info "setStorage", address=address, slot=slot, value=value
   var table = ac.map.getOrDefault(address)
   if table.isNil:
     table = StorageTable()

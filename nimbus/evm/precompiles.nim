@@ -149,9 +149,7 @@ proc getFR(data: openArray[byte]): FR =
     raise newException(ValidationError, "Could not get FR value")
 
 proc ecRecover*(computation: Computation) =
-  computation.gasMeter.consumeGas(
-    GasECRecover,
-    reason="ECRecover Precompile")
+  computation.gasMeter.consumeGas(GasECRecover, reason="ECRecover Precompile")
 
   var
     (msgHash, sig) = computation.getSignature()

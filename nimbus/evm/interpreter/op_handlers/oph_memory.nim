@@ -194,69 +194,69 @@ const
       when evmc_enabled:
         sstoreEvmc(cpt, slot, newValue)
       else:
-        info "sstoreOp", cpt=cpt.msg.kind
+        info "sstoreOp", cpt=cpt.msg.kind, data=cpt.msg.data
         sstoreImpl(cpt, slot, newValue)
 
 
-  sstoreEIP1283Op: Vm2OpFn = proc (k: var Vm2Ctx) =
-    ## 0x55, EIP1283: sstore for Constantinople and later
-    let cpt = k.cpt
-    let (slot, newValue) = cpt.stack.popInt(2)
+  # sstoreEIP1283Op: Vm2OpFn = proc (k: var Vm2Ctx) =
+  #   ## 0x55, EIP1283: sstore for Constantinople and later
+  #   let cpt = k.cpt
+  #   let (slot, newValue) = cpt.stack.popInt(2)
 
-    checkInStaticContext(cpt)
-    cpt.asyncChainTo(ifNecessaryGetSlot(cpt.vmState, cpt.msg.contractAddress, slot)):
-      when evmc_enabled:
-        sstoreEvmc(cpt, slot, newValue)
-      else:
-        sstoreNetGasMeteringImpl(cpt, slot, newValue)
-
-
-  sstoreEIP2200Op: Vm2OpFn = proc (k: var Vm2Ctx) =
-    ## 0x55, EIP2200: sstore for Istanbul and later
-    let cpt = k.cpt
-    let (slot, newValue) = cpt.stack.popInt(2)
-
-    checkInStaticContext(cpt)
-    const SentryGasEIP2200 = 2300
-
-    if cpt.gasMeter.gasRemaining <= SentryGasEIP2200:
-      raise newException(
-        OutOfGas,
-        "Gas not enough to perform EIP2200 SSTORE")
-
-    cpt.asyncChainTo(ifNecessaryGetSlot(cpt.vmState, cpt.msg.contractAddress, slot)):
-      when evmc_enabled:
-        sstoreEvmc(cpt, slot, newValue)
-      else:
-        sstoreNetGasMeteringImpl(cpt, slot, newValue)
+  #   checkInStaticContext(cpt)
+  #   cpt.asyncChainTo(ifNecessaryGetSlot(cpt.vmState, cpt.msg.contractAddress, slot)):
+  #     when evmc_enabled:
+  #       sstoreEvmc(cpt, slot, newValue)
+  #     else:
+  #       sstoreNetGasMeteringImpl(cpt, slot, newValue)
 
 
-  sstoreEIP2929Op: Vm2OpFn = proc (k: var Vm2Ctx) =
-    ## 0x55, EIP2929: sstore for Berlin and later
-    let cpt = k.cpt
-    let (slot, newValue) = cpt.stack.popInt(2)
-    checkInStaticContext(cpt)
+  # sstoreEIP2200Op: Vm2OpFn = proc (k: var Vm2Ctx) =
+  #   ## 0x55, EIP2200: sstore for Istanbul and later
+  #   let cpt = k.cpt
+  #   let (slot, newValue) = cpt.stack.popInt(2)
 
-    # Minimum gas required to be present for an SSTORE call, not consumed
-    const SentryGasEIP2200 = 2300
+  #   checkInStaticContext(cpt)
+  #   const SentryGasEIP2200 = 2300
 
-    if cpt.gasMeter.gasRemaining <= SentryGasEIP2200:
-      raise newException(OutOfGas, "Gas not enough to perform EIP2200 SSTORE")
+  #   if cpt.gasMeter.gasRemaining <= SentryGasEIP2200:
+  #     raise newException(
+  #       OutOfGas,
+  #       "Gas not enough to perform EIP2200 SSTORE")
 
-    cpt.asyncChainTo(ifNecessaryGetSlot(cpt.vmState, cpt.msg.contractAddress, slot)):
-      when evmc_enabled:
-        if cpt.host.accessStorage(cpt.msg.contractAddress, slot) == EVMC_ACCESS_COLD:
-          cpt.gasMeter.consumeGas(ColdSloadCost, reason = "sstoreEIP2929")
-      else:
-        cpt.vmState.mutateStateDB:
-          if not db.inAccessList(cpt.msg.contractAddress, slot):
-            db.accessList(cpt.msg.contractAddress, slot)
-            cpt.gasMeter.consumeGas(ColdSloadCost, reason = "sstoreEIP2929")
+  #   cpt.asyncChainTo(ifNecessaryGetSlot(cpt.vmState, cpt.msg.contractAddress, slot)):
+  #     when evmc_enabled:
+  #       sstoreEvmc(cpt, slot, newValue)
+  #     else:
+  #       sstoreNetGasMeteringImpl(cpt, slot, newValue)
 
-      when evmc_enabled:
-        sstoreEvmc(cpt, slot, newValue)
-      else:
-        sstoreNetGasMeteringImpl(cpt, slot, newValue)
+
+  # sstoreEIP2929Op: Vm2OpFn = proc (k: var Vm2Ctx) =
+  #   ## 0x55, EIP2929: sstore for Berlin and later
+  #   let cpt = k.cpt
+  #   let (slot, newValue) = cpt.stack.popInt(2)
+  #   checkInStaticContext(cpt)
+
+  #   # Minimum gas required to be present for an SSTORE call, not consumed
+  #   const SentryGasEIP2200 = 2300
+
+  #   if cpt.gasMeter.gasRemaining <= SentryGasEIP2200:
+  #     raise newException(OutOfGas, "Gas not enough to perform EIP2200 SSTORE")
+
+  #   cpt.asyncChainTo(ifNecessaryGetSlot(cpt.vmState, cpt.msg.contractAddress, slot)):
+  #     when evmc_enabled:
+  #       if cpt.host.accessStorage(cpt.msg.contractAddress, slot) == EVMC_ACCESS_COLD:
+  #         cpt.gasMeter.consumeGas(ColdSloadCost, reason = "sstoreEIP2929")
+  #     else:
+  #       cpt.vmState.mutateStateDB:
+  #         if not db.inAccessList(cpt.msg.contractAddress, slot):
+  #           db.accessList(cpt.msg.contractAddress, slot)
+  #           cpt.gasMeter.consumeGas(ColdSloadCost, reason = "sstoreEIP2929")
+
+  #     when evmc_enabled:
+  #       sstoreEvmc(cpt, slot, newValue)
+  #     else:
+  #       sstoreNetGasMeteringImpl(cpt, slot, newValue)
 
   # -------
 
@@ -406,60 +406,60 @@ const
             post: vm2OpIgnore)),
 
     (opCode: Sload,     ## 0x54, Load word from storage
-     forks: Vm2OpAllForks - Vm2OpBerlinAndLater,
+     forks: Vm2OpAllForks,
      name: "sload",
      info: "Load word from storage",
      exec: (prep: vm2OpIgnore,
             run:  sloadOp,
             post: vm2OpIgnore)),
 
-    (opCode: Sload,     ## 0x54, sload for Berlin and later
-     forks: Vm2OpBerlinAndLater,
-     name: "sloadEIP2929",
-     info: "EIP2929: sload for Berlin and later",
-     exec: (prep: vm2OpIgnore,
-            run:  sloadEIP2929Op,
-            post: vm2OpIgnore)),
+    # (opCode: Sload,     ## 0x54, sload for Berlin and later
+    #  forks: Vm2OpAllForks,
+    #  name: "sloadEIP2929",
+    #  info: "EIP2929: sload for Berlin and later",
+    #  exec: (prep: vm2OpIgnore,
+    #         run:  sloadEIP2929Op,
+    #         post: vm2OpIgnore)),
 
     (opCode: Sstore,    ## 0x55, Save word
-     forks: Vm2OpAllForks - Vm2OpConstantinopleAndLater,
+     forks: Vm2OpAllForks,
      name: "sstore",
      info: "Save word to storage",
      exec: (prep: vm2OpIgnore,
             run:  sstoreOp,
             post: vm2OpIgnore)),
 
-    (opCode: Sstore,    ## 0x55, sstore for Constantinople and later
-     forks: Vm2OpConstantinopleAndLater - Vm2OpPetersburgAndLater,
-     name: "sstoreEIP1283",
-     info: "EIP1283: sstore for Constantinople and later",
-     exec: (prep: vm2OpIgnore,
-            run:  sstoreEIP1283Op,
-            post: vm2OpIgnore)),
+    # (opCode: Sstore,    ## 0x55, sstore for Constantinople and later
+    #  forks: Vm2OpAllForks,
+    #  name: "sstoreEIP1283",
+    #  info: "EIP1283: sstore for Constantinople and later",
+    #  exec: (prep: vm2OpIgnore,
+    #         run:  sstoreEIP1283Op,
+    #         post: vm2OpIgnore)),
 
-    (opCode: Sstore,    ## 0x55, sstore for Petersburg and later
-     forks: Vm2OpPetersburgAndLater - Vm2OpIstanbulAndLater,
-     name: "sstore",
-     info: "sstore for Constantinople and later",
-     exec: (prep: vm2OpIgnore,
-            run:  sstoreOp,
-            post: vm2OpIgnore)),
+    # (opCode: Sstore,    ## 0x55, sstore for Petersburg and later
+    #  forks: Vm2OpAllForks,
+    #  name: "sstore",
+    #  info: "sstore for Constantinople and later",
+    #  exec: (prep: vm2OpIgnore,
+    #         run:  sstoreOp,
+    #         post: vm2OpIgnore)),
 
-    (opCode: Sstore,    ##  0x55, sstore for Istanbul and later
-     forks: Vm2OpIstanbulAndLater - Vm2OpBerlinAndLater,
-     name: "sstoreEIP2200",
-     info: "EIP2200: sstore for Istanbul and later",
-     exec: (prep: vm2OpIgnore,
-            run:  sstoreEIP2200Op,
-            post: vm2OpIgnore)),
+    # (opCode: Sstore,    ##  0x55, sstore for Istanbul and later
+    #  forks: Vm2OpAllForks,
+    #  name: "sstoreEIP2200",
+    #  info: "EIP2200: sstore for Istanbul and later",
+    #  exec: (prep: vm2OpIgnore,
+    #         run:  sstoreEIP2200Op,
+    #         post: vm2OpIgnore)),
 
-    (opCode: Sstore,    ##  0x55, sstore for Berlin and later
-     forks: Vm2OpBerlinAndLater,
-     name: "sstoreEIP2929",
-     info: "EIP2929: sstore for Istanbul and later",
-     exec: (prep: vm2OpIgnore,
-            run:  sstoreEIP2929Op,
-            post: vm2OpIgnore)),
+    # (opCode: Sstore,    ##  0x55, sstore for Berlin and later
+    #  forks: Vm2OpBerlinAndLater,
+    #  name: "sstoreEIP2929",
+    #  info: "EIP2929: sstore for Istanbul and later",
+    #  exec: (prep: vm2OpIgnore,
+    #         run:  sstoreEIP2929Op,
+    #         post: vm2OpIgnore)),
 
     (opCode: Jump,      ## 0x56, Jump
      forks: Vm2OpAllForks,
@@ -513,7 +513,7 @@ const
             post: vm2OpIgnore)),
 
     (opCode: Tload,     ## 0x5c, Load word from transient storage.
-     forks: Vm2OpCancunAndLater,
+     forks: Vm2OpAllForks,
      name: "tLoad",
      info: "Load word from transient storage",
      exec: (prep: vm2OpIgnore,
@@ -521,7 +521,7 @@ const
             post: vm2OpIgnore)),
 
     (opCode: Tstore,     ## 0x5d, Save word to transient storage.
-     forks: Vm2OpCancunAndLater,
+     forks: Vm2OpAllForks,
      name: "tStore",
      info: "Save word to transient storage",
      exec: (prep: vm2OpIgnore,
@@ -529,7 +529,7 @@ const
             post: vm2OpIgnore)),
 
     (opCode: Mcopy,     ## 0x5e, Copy memory
-     forks: Vm2OpCancunAndLater,
+     forks: Vm2OpAllForks,
      name: "MCopy",
      info: "Copy memory",
      exec: (prep: vm2OpIgnore,

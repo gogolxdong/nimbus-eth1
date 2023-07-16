@@ -706,8 +706,7 @@ func getTransientStorage*(ac: AccountsCache,
       return res
     sp = sp.parentSavepoint
 
-proc setTransientStorage*(ac: AccountsCache,
-                          address: EthAddress, slot, val: UInt256) =
+proc setTransientStorage*(ac: AccountsCache,address: EthAddress, slot, val: UInt256) =
   ac.savePoint.transientStorage.setStorage(address, slot, val)
 
 proc clearTransientStorage*(ac: AccountsCache) {.inline.} =

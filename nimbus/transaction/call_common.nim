@@ -265,7 +265,7 @@ proc finishRunningComputation(host: TransactionHost, call: CallParams): CallResu
 
   result.isError = c.isError
   result.gasUsed = call.gasLimit - gasRemaining
-  shallowCopy(result.output, c.output)
+  result.output = move c.output
   result.contractAddress = if call.isCreate: c.msg.contractAddress
                            else: default(HostAddress)
   result.logEntries = host.vmState.stateDB.logEntries()
