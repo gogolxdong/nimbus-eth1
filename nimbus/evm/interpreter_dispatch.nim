@@ -37,8 +37,14 @@ proc selectVM(c: Computation, fork: EVMFork, shouldPrepareTracer: bool) {.gcsafe
   if c.tracingEnabled and shouldPrepareTracer:
     c.prepareTracer()
 
+  # info "selectVM", contractAddress=c.msg.contractAddress, code=c.code.bytes
   while true:
     c.instr = c.code.next()
+    # if c.instr == Sstore:
+    #   c.instr = Tstore
+    # if c.instr == Sload:
+    #   c.instr = Tload
+
     # Note Mamy's observation in opTableToCaseStmt() from original VM
     # regarding computed goto
     #
@@ -110,8 +116,7 @@ proc afterExecCall(c: Computation) =
   else:
     c.rollback()
 
-proc beforeExecCreate(c: Computation): bool
-    {.gcsafe, raises: [ValueError].} =
+proc beforeExecCreate(c: Computation): bool {.gcsafe, raises: [ValueError].} =
   c.vmState.mutateStateDB:
     let nonce = db.getNonce(c.msg.sender)
     if nonce+1 < nonce:
@@ -143,8 +148,7 @@ proc beforeExecCreate(c: Computation): bool
 
   return false
 
-proc afterExecCreate(c: Computation)
-    {.gcsafe, raises: [CatchableError].} =
+proc afterExecCreate(c: Computation) {.gcsafe, raises: [CatchableError].} =
   if c.isSuccess:
     # This can change `c.isSuccess`.
     c.writeContract()
@@ -159,16 +163,14 @@ proc afterExecCreate(c: Computation)
   else:
     c.rollback()
 
-proc beforeExec(c: Computation): bool
-    {.gcsafe, raises: [ValueError].} =
+proc beforeExec(c: Computation): bool {.gcsafe, raises: [ValueError].} =
   if not c.msg.isCreate:
     c.beforeExecCall()
     false
   else:
     c.beforeExecCreate()
 
-proc afterExec(c: Computation)
-    {.gcsafe, raises: [CatchableError].} =
+proc afterExec(c: Computation) {.gcsafe, raises: [CatchableError].} =
   if not c.msg.isCreate:
     c.afterExecCall()
   else:
@@ -180,7 +182,6 @@ proc afterExec(c: Computation)
 
 proc executeOpcodes*(c: Computation, shouldPrepareTracer: bool = true) {.gcsafe, raises: [CatchableError].} =
   let fork = c.fork
-
   block:
     if c.continuation.isNil and c.execPrecompiles(fork):
       break
@@ -243,6 +244,7 @@ when vm_use_recursion:
 
 else:
   proc execCallOrCreate*(cParam: Computation) {.gcsafe, raises: [CatchableError].} =
+    info "execCallOrCreate", contractAddress=cParam.msg.contractAddress, code=cParam.code.bytes.len
     var (c, before, shouldPrepareTracer) = (cParam, true, true)
     defer:
       while not c.isNil:

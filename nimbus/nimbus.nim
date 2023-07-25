@@ -291,7 +291,8 @@ proc localServices(nimbus: NimbusNode, conf: NimbusConf, com: CommonRef, protoco
   #     @[httpCorsHook]
   #   )
   #   nimbus.graphqlServer.start()
-
+  # var address = PrivateKey.fromHex(readFile("/root/key")).get.toPublicKey.toCanonicalAddress
+  # info "nimbus", address=address, engineSigner=conf.engineSigner
   if conf.engineSigner != ZERO_ADDRESS:
     let res = nimbus.ctx.am.getAccount(conf.engineSigner)
     if res.isErr:
@@ -313,8 +314,7 @@ proc localServices(nimbus: NimbusNode, conf: NimbusConf, com: CommonRef, protoco
 
     nimbus.chainRef.clique.authorize(conf.engineSigner, signFunc)
 
-  # always create sealing engine instance but not always run it
-  # e.g. engine api need sealing engine without it running
+  # always create sealing engine instance but not always run it e.g. engine api need sealing engine without it running
   var initialState = EngineStopped
   if com.forkGTE(MergeFork):
      initialState = EnginePostMerge
@@ -408,53 +408,56 @@ proc start(nimbus: NimbusNode, conf: NimbusConf) =
       nimbus.state = Running
 
 proc stop*(nimbus: NimbusNode, conf: NimbusConf) {.async, gcsafe.} =
+  info "stop", conf=conf
   if conf.rpcEnabled:
-    info "nimbus.rpcServer.stop()"
+    info "nimbus.rpcServer.stop"
     await nimbus.rpcServer.stop()
 
   if conf.engineApiEnabled and nimbus.engineApiServer.isNil.not:
-    info "nimbus.engineApiServer.stop()"
+    info "nimbus.engineApiServer.stop"
     await nimbus.engineApiServer.stop()
 
   if conf.wsEnabled:
-    info "nimbus.wsRpcServer.stop()"
+    info "nimbus.wsRpcServer.stop"
     nimbus.wsRpcServer.stop()
 
   if conf.engineApiWsEnabled and nimbus.engineApiWsServer.isNil.not:
-    info "nimbus.engineApiWsServer.stop()"
+    info "nimbus.engineApiWsServer.stop"
     nimbus.engineApiWsServer.stop()
 
   if conf.engineSigner != ZERO_ADDRESS:
-    info "nimbus.sealingEngine.stop()"
+    info "nimbus.sealingEngine.stop"
     await nimbus.sealingEngine.stop()
   
   if conf.maxPeers > 0:
-    info "nimbus.networkLoop.cancelAndWait()"
+    info "nimbus.networkLoop.cancelAndWait"
     await nimbus.networkLoop.cancelAndWait()
   
   if nimbus.peerManager.isNil.not:
-    info "nimbus.peerManager.stop()"
+    info "nimbus.peerManager.stop"
     await nimbus.peerManager.stop()
 
   if nimbus.statelessSyncRef.isNil.not:
-    info "nimbus.statelessSyncRef.stop()"
+    info "nimbus.statelessSyncRef.stop"
     nimbus.statelessSyncRef.stop()
   
   if nimbus.snapSyncRef.isNil.not:
-    info "nimbus.snapSyncRef.stop()"
+    info "nimbus.snapSyncRef.stop"
     nimbus.snapSyncRef.stop()
     
   if nimbus.fullSyncRef.isNil.not:
-    info "nimbus.fullSyncRef.stop()"
+    info "nimbus.fullSyncRef.stop"
     nimbus.fullSyncRef.stop()
 
 proc process*(nimbus: NimbusNode, conf: NimbusConf) =
   # Main event loop
-  while nimbus.state == Running:
+  while true:
+    if nimbus.state != Running:
+      break
     try:
       poll()
     except CatchableError as e:
-      debug "Exception in poll()", exc = e.name, err = e.msg
+      info "Exception in poll()", exc = e.name, err = e.msg
       discard e # silence warning when chronicles not activated
   waitFor nimbus.stop(conf)
 

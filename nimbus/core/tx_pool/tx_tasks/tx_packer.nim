@@ -82,8 +82,7 @@ proc persist(pst: TxPackerStateRef)
 # Private functions
 # ------------------------------------------------------------------------------
 
-proc runTx(pst: TxPackerStateRef; item: TxItemRef): GasInt
-    {.gcsafe,raises: [CatchableError].} =
+proc runTx(pst: TxPackerStateRef; item: TxItemRef): GasInt {.gcsafe,raises: [CatchableError].} =
   ## Execute item transaction and update `vmState` book keeping. Returns the
   ## `gasUsed` after executing the transaction.
   let

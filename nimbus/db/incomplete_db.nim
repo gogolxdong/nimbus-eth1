@@ -17,8 +17,6 @@ import
   ./values_from_bytes,
   ./distinct_tries
 
-
-
 # Useful for debugging.
 const shouldDoAssertionsForMissingNodes* = false
 

@@ -66,9 +66,7 @@ proc new(T: type TxHeadDiffRef): T =
 # ------------------------------------------------------------------------------
 
 # core/tx_pool.go(218): func (pool *TxPool) reset(oldHead, newHead ...
-proc headDiff*(xp: TxPoolRef;
-               newHead: BlockHeader): Result[TxHeadDiffRef,TxInfo]
-    {.gcsafe,raises: [CatchableError].} =
+proc headDiff*(xp: TxPoolRef; newHead: BlockHeader): Result[TxHeadDiffRef,TxInfo] {.gcsafe,raises: [CatchableError].} =
   ## This function caclulates the txs differences between the cached block
   ## chain head to a new head implied by the argument `newHeader`. Differences
   ## are returned as two tables for adding and removing txs. The tables table
@@ -138,11 +136,7 @@ proc headDiff*(xp: TxPoolRef;
         curHead = curHash,
         curNumber = curHead.blockNumber
       return err(txInfoErrAncestorMissing)
-    debug "Tx-pool reset with detached current head",
-      curHeader = curHash,
-      curNumber = curHead.blockNumber,
-      newHeader = newHash,
-      newNumber = newHead.blockNumber
+    debug "Tx-pool reset with detached current head", curHeader = curHash, curNumber = curHead.blockNumber, newHeader = newHash, newNumber = newHead.blockNumber
     return err(txInfoErrChainHeadMissing)
 
   # Equalise block numbers between branches (typically, these btanches
@@ -207,9 +201,7 @@ proc headDiff*(xp: TxPoolRef;
         tmpHash = newBranchHash
       newBranchHash = newBranchHead.parentHash # decrement block number
       if not db.getBlockHeader(newBranchHash, newBranchHead):
-        error "Unrooted new chain seen by tx-pool",
-          newBranchHead = tmpHash,
-          newBranchNumber = tmpHead.blockNumber
+        error "Unrooted new chain seen by tx-pool", newBranchHead = tmpHash, newBranchNumber = tmpHead.blockNumber
         return err(txInfoErrUnrootedNewChain)
 
   # simultaneously step back until junction-head (aka common ancestor) while
@@ -223,9 +215,7 @@ proc headDiff*(xp: TxPoolRef;
         tmpHash = curBranchHash
       curBranchHash = curBranchHead.parentHash
       if not db.getBlockHeader(curBranchHash, curBranchHead):
-        error "Unrooted old chain seen by tx-pool",
-          curBranchHead = tmpHash,
-          curBranchNumber = tmpHead.blockNumber
+        error "Unrooted old chain seen by tx-pool", curBranchHead = tmpHash, curBranchNumber = tmpHead.blockNumber 
         return err(txInfoErrUnrootedCurChain)
     block:
       xp.remove(txDiffs, newBranchHash)
@@ -234,9 +224,7 @@ proc headDiff*(xp: TxPoolRef;
         tmpHash = newBranchHash
       newBranchHash = newBranchHead.parentHash
       if not db.getBlockHeader(newBranchHash, newBranchHead):
-        error "Unrooted new chain seen by tx-pool",
-          newBranchHead = tmpHash,
-          newBranchNumber = tmpHead.blockNumber
+        error "Unrooted new chain seen by tx-pool", newBranchHead = tmpHash, newBranchNumber = tmpHead.blockNumber
         return err(txInfoErrUnrootedNewChain)
 
   # figure out difference sets

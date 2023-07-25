@@ -369,9 +369,7 @@ iterator incAccount*(xp: TxTabsRef; bucket: TxItemStatus; fromRank = TxRank.low)
       rcRank = xp.byRank.gt(rank) # potenially modified database
 
 
-iterator decAccount*(xp: TxTabsRef; bucket: TxItemStatus;
-                     fromRank = TxRank.high): (EthAddress,TxStatusNonceRef)
-        {.gcsafe,raises: [KeyError].} =
+iterator decAccount*(xp: TxTabsRef; bucket: TxItemStatus; fromRank = TxRank.high): (EthAddress,TxStatusNonceRef) {.gcsafe,raises: [KeyError].} =
   ## Walk accounts with decreasing ranks and return the nonce-ordered item list.
   let rcBucket = xp.byStatus.eq(bucket)
   if rcBucket.isOk:

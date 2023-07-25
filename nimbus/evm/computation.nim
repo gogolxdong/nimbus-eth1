@@ -1,13 +1,3 @@
-# Nimbus
-# Copyright (c) 2018 Status Research & Development GmbH
-# Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or
-#    http://www.apache.org/licenses/LICENSE-2.0)
-#  * MIT license ([LICENSE-MIT](LICENSE-MIT) or
-#    http://opensource.org/licenses/MIT)
-# at your option. This file may not be copied, modified, or distributed except
-# according to those terms.
-
 import
   ".."/[db/accounts_cache, constants],
   "."/[code_stream, memory, message, stack, state],
@@ -216,8 +206,7 @@ template getTransientStorage*(c: Computation, slot: UInt256): UInt256 =
     c.vmState.readOnlyStateDB.
       getTransientStorage(c.msg.contractAddress, slot)
 
-proc newComputation*(vmState: BaseVMState, message: Message,
-                     salt: ContractSalt = ZERO_CONTRACTSALT): Computation =
+proc newComputation*(vmState: BaseVMState, message: Message, salt: ContractSalt = ZERO_CONTRACTSALT): Computation =
   new result
   result.vmState = vmState
   result.msg = message
@@ -279,12 +268,9 @@ proc rollback*(c: Computation) =
 proc setError*(c: Computation, msg: string, burnsGas = false) =
   c.error = Error(info: msg, burnsGas: burnsGas)
 
-proc writeContract*(c: Computation)
-    {.gcsafe, raises: [CatchableError].} =
+proc writeContract*(c: Computation) {.gcsafe, raises: [CatchableError].} =
   template withExtra(tracer: untyped, args: varargs[untyped]) =
-    tracer args, newContract=($c.msg.contractAddress),
-      blockNumber=c.vmState.blockNumber,
-      parentHash=($c.vmState.parent.blockHash)
+    tracer args, newContract=($c.msg.contractAddress), blockNumber=c.vmState.blockNumber, parentHash=($c.vmState.parent.blockHash)
 
   # In each check below, they are guarded by `len > 0`.  This includes writing
   # out the code, because the account already has zero-length code to handle
@@ -302,8 +288,7 @@ proc writeContract*(c: Computation)
 
   # EIP-170 constraint (https://eips.ethereum.org/EIPS/eip-3541).
   if fork >= FkSpurious and len > EIP170_MAX_CODE_SIZE:
-    withExtra trace, "New contract code exceeds EIP-170 limit",
-      codeSize=len, maxSize=EIP170_MAX_CODE_SIZE
+    withExtra trace, "New contract code exceeds EIP-170 limit", codeSize=len, maxSize=EIP170_MAX_CODE_SIZE
     # TODO: Return `EVMC_OUT_OF_GAS` (like Silkworm).
     c.setError("EVMC_OUT_OF_GAS", true)
     return
@@ -352,8 +337,7 @@ template asyncChainTo*(c: Computation, asyncOperation: Future[void], after: unty
 proc merge*(c, child: Computation) =
   c.gasMeter.refundGas(child.gasMeter.gasRefunded)
 
-proc execSelfDestruct*(c: Computation, beneficiary: EthAddress)
-    {.gcsafe, raises: [CatchableError].} =
+proc execSelfDestruct*(c: Computation, beneficiary: EthAddress) {.gcsafe, raises: [CatchableError].} =
   c.vmState.mutateStateDB:
     let localBalance = c.getBalance(c.msg.contractAddress)
 
@@ -368,10 +352,7 @@ proc execSelfDestruct*(c: Computation, beneficiary: EthAddress)
     # Register the account to be deleted
     db.selfDestruct(c.msg.contractAddress)
 
-    trace "SELFDESTRUCT",
-      contractAddress = c.msg.contractAddress.toHex,
-      localBalance = localBalance.toString,
-      beneficiary = beneficiary.toHex
+    trace "SELFDESTRUCT", contractAddress = c.msg.contractAddress.toHex, localBalance = localBalance.toString, beneficiary = beneficiary.toHex
 
 proc addLogEntry*(c: Computation, log: Log) =
   c.vmState.stateDB.addLogEntry(log)
@@ -388,15 +369,13 @@ proc refundSelfDestruct*(c: Computation) =
 proc tracingEnabled*(c: Computation): bool =
   TracerFlags.EnableTracing in c.vmState.tracer.flags
 
-proc traceOpCodeStarted*(c: Computation, op: Op): int
-    {.gcsafe, raises: [CatchableError].} =
+proc traceOpCodeStarted*(c: Computation, op: Op): int {.gcsafe, raises: [CatchableError].} =
   c.vmState.tracer.traceOpCodeStarted(c, op)
 
 proc traceOpCodeEnded*(c: Computation, op: Op, lastIndex: int) {.gcsafe, raises: [CatchableError].} =
   c.vmState.tracer.traceOpCodeEnded(c, op, lastIndex)
 
-proc traceError*(c: Computation)
-    {.gcsafe, raises: [CatchableError].} =
+proc traceError*(c: Computation) {.gcsafe, raises: [CatchableError].} =
   c.vmState.tracer.traceError(c)
 
 proc prepareTracer*(c: Computation) =

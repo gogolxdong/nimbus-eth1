@@ -1,19 +1,9 @@
-# Nimbus
-# Copyright (c) 2018 Status Research & Development GmbH
-# Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or
-#    http://www.apache.org/licenses/LICENSE-2.0)
-#  * MIT license ([LICENSE-MIT](LICENSE-MIT) or
-#    http://opensource.org/licenses/MIT)
-# at your option. This file may not be copied, modified, or distributed except
-# according to those terms.
-
 import
-  std/[sequtils, algorithm],
+  std/[sequtils, algorithm, options],
   stew/[byteutils], eth/trie/[hexary, db],
   eth/[common, rlp], chronicles,
   ".."/[errors, constants, utils/utils],
-  "."/storage_types
+  "."/storage_types, ./kvstore_lmdb, lmdb, ../transaction
 
 export
   db,
@@ -24,7 +14,7 @@ export
 type
   ChainDBRef* = distinct TrieDatabaseRef
 
-  TransactionKey = tuple
+  TransactionKey* = tuple
     blockNumber: BlockNumber
     index: int
 
@@ -67,6 +57,7 @@ proc getBlockHeader*(db: ChainDBRef, blockHash: Hash256): BlockHeader =
   ##
   ## Raises BlockNotFound if it is not present in the db.
   if not db.getBlockHeader(blockHash, result):
+    error "No block with hash ", blockHash=blockHash.data.toHex
     raise newException(BlockNotFound, "No block with hash " & blockHash.data.toHex)
 
 proc getHash(db: ChainDBRef, key: DbKey, output: var Hash256): bool {.inline.} =
@@ -176,19 +167,32 @@ iterator findNewAncestors(db: ChainDBRef; header: BlockHeader): BlockHeader =
       h = db.getBlockHeader(h.parentHash)
 
 proc addBlockNumberToHashLookup*(db: ChainDBRef; header: BlockHeader) =
-  db.db.put(blockNumberToHashKey(header.blockNumber).toOpenArray,
-              rlp.encode(header.hash))
+  db.db.put(blockNumberToHashKey(header.blockNumber).toOpenArray, rlp.encode(header.hash))
 
-proc persistTransactions*(db: ChainDBRef, blockNumber:
-                          BlockNumber, transactions: openArray[Transaction]): Hash256 =
+proc persistTransactions*(db: ChainDBRef, blockNumber: BlockNumber, transactions: openArray[Transaction]): Hash256 =
   var trie = initHexaryTrie(db.db)
   for idx, tx in transactions:
     let
       encodedTx = rlp.encode(tx.removeNetworkPayload)
       txHash = rlpHash(tx) # beware EIP-4844
       txKey: TransactionKey = (blockNumber, idx)
+      sender = tx.getSender()
+      contractAddress = getRecipient(tx, sender)
     trie.put(rlp.encode(idx), encodedTx)
     db.db.put(transactionHashToBlockKey(txHash).toOpenArray, rlp.encode(txKey))
+    if tx.to.isNone:
+      try:
+        # var lmdbEnv = newLMDBEnv( ".lmdb")
+        # var txn = lmdbEnv.newTxn()
+        # let dbi = txn.dbiOpen("", 0)
+        # var keyVal = Val(mvSize: contractAddress.len.uint, mvData: contractAddress[0].unsafeAddr)
+        # var dataVal = Val(mvSize: tx.payload.len.uint, mvData: tx.payload[0].unsafeAddr)
+        # var ret = txn.put(dbi, keyVal.addr, dataVal.addr, 0)
+        # if ret == 0:
+        #   txn.commit()
+        info "persistTransactions", createContract=contractAddress
+      except:
+        echo "persistTransactions:",getCurrentExceptionMsg()
   trie.rootHash
 
 proc getTransaction*(db: ChainDBRef, txRoot: Hash256, txIndex: int, res: var Transaction): bool =

@@ -1,7 +1,7 @@
 {.push raises: [].}
 
 import
-  chronicles,
+  chronicles, lmdb, sequtils,
   eth/common/eth_types, stint, options, stew/ptrops,
   chronos,
   ".."/[vm_types, vm_state, vm_computation, vm_state_transactions],
@@ -10,7 +10,8 @@ import
   ../evm/async/operations,
   ../common/evmforks,
   ../core/eip4844,
-  ./host_types
+  ./host_types,
+  ../utils/utils
 
 when defined(evmc_enabled):
   import ../utils/utils
@@ -121,7 +122,7 @@ proc initialAccessListEIP2929(call: CallParams) =
       for key in account.storageKeys:
         db.accessList(account.address, UInt256.fromBytesBE(key))
 
-proc setupHost(call: CallParams): TransactionHost =
+proc setupHost(call: CallParams, contractCode: seq[byte]): TransactionHost =
   let vmState = call.vmState
   vmState.setupTxContext(
     origin       = call.origin.get(call.sender),
@@ -156,8 +157,7 @@ proc setupHost(call: CallParams): TransactionHost =
     var code: seq[byte]
     if call.isCreate:
       let sender = call.sender
-      let contractAddress =
-        generateAddress(sender, call.vmState.readOnlyStateDB.getNonce(sender))
+      let contractAddress = generateAddress(sender, call.vmState.readOnlyStateDB.getNonce(sender))
       host.msg.recipient = contractAddress.toEvmc
       host.msg.input_size = 0
       host.msg.input_data = nil
@@ -179,21 +179,33 @@ proc setupHost(call: CallParams): TransactionHost =
     shallowCopy(host.code, code)
 
   else:
-    if call.input.len > 0:
-      host.msg.input_size = call.input.len.csize_t
-      # Must copy the data so the `host.msg.input_data` pointer
-      # remains valid after the end of `call` lifetime.
-      host.input = call.input
-      host.msg.input_data = host.input[0].addr
+    var code: seq[byte]
+    info "setupHost", isCreate=call.isCreate
+    if call.isCreate:
+      let sender = call.sender
+      var contractAddress = generateAddress(sender, call.vmState.readOnlyStateDB.getNonce(sender))
+      host.msg.recipient = contractAddress.toEvmc
+      host.msg.input_size = 0
+      host.msg.input_data = nil
+      code = call.input
+      info "setupHost", code=code.len
+
+    else:
+      if call.input.len > 0:
+        host.msg.input_size = call.input.len.csize_t
+        # Must copy the data so the `host.msg.input_data` pointer
+        # remains valid after the end of `call` lifetime.
+        host.input = call.input
+        host.msg.input_data = host.input[0].addr
+        code = contractCode
 
     let cMsg = hostToComputationMessage(host.msg)
-    host.computation = newComputation(vmState, cMsg)
+    host.computation = newComputation(vmState, cMsg, code)
 
   return host
 
 when defined(evmc_enabled):
-  proc doExecEvmc(host: TransactionHost, call: CallParams)
-      {.gcsafe, raises: [CatchableError].} =
+  proc doExecEvmc(host: TransactionHost, call: CallParams) {.gcsafe, raises: [CatchableError].} =
     var callResult = evmcExecComputation(host)
     let c = host.computation
 
@@ -215,8 +227,7 @@ when defined(evmc_enabled):
           callResult.release(callResult)
         except Exception as e:
           {.warning: "Kludge(BareExcept): `evmc_release_fn` in vendor package needs to be updated"}
-          raiseAssert "Ooops evmcExecComputation(): name=" &
-            $e.name & " msg=" & e.msg
+          raiseAssert "Ooops evmcExecComputation(): name=" & $e.name & " msg=" & e.msg
 
 # FIXME-awkwardFactoring: the factoring out of the pre and
 # post parts feels awkward to me, but for now I'd really like
@@ -265,31 +276,31 @@ proc finishRunningComputation(host: TransactionHost, call: CallParams): CallResu
 
   result.isError = c.isError
   result.gasUsed = call.gasLimit - gasRemaining
-  result.output = move c.output
+  result.output = c.output
   result.contractAddress = if call.isCreate: c.msg.contractAddress
                            else: default(HostAddress)
   result.logEntries = host.vmState.stateDB.logEntries()
   result.stack = c.stack
   result.memory = c.memory
 
-proc runComputation*(call: CallParams): CallResult {.gcsafe, raises: [CatchableError].} =
-  let host = setupHost(call)
+proc runComputation*(call: CallParams, contractCode:seq[byte]= @[]): CallResult {.gcsafe, raises: [CatchableError].} =
+  let host = setupHost(call, contractCode)
   prepareToRunComputation(host, call)
   when defined(evmc_enabled):
     doExecEvmc(host, call)
   else:
-    waitFor asyncExecComputation(host.computation)
-    # execComputation(host.computation)
+    # waitFor asyncExecComputation(host.computation)
+    execComputation(host.computation)
 
   finishRunningComputation(host, call)
 
 # FIXME-duplicatedForAsync
-proc asyncRunComputation*(call: CallParams): Future[CallResult] {.async.} =
+proc asyncRunComputation*(call: CallParams, contractCode:seq[byte]= @[]): Future[CallResult] {.async.} =
   # This has to come before the newComputation call inside setupHost.
   if not call.isCreate:
     await ifNecessaryGetCodeForAccounts(call.vmState, @[call.to.toEvmc.fromEvmc])
 
-  let host = setupHost(call)
+  let host = setupHost(call, contractCode)
   prepareToRunComputation(host, call)
 
   # FIXME-asyncAndEvmc: I'm not sure what to do with EVMC at the moment.

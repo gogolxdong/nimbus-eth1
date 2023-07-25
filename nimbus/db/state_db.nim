@@ -70,8 +70,7 @@ proc rootHash*(db: AccountStateDB): KeccakHash =
 proc `rootHash=`*(db: AccountStateDB, root: KeccakHash) =
   db.trie = initAccountsTrie(trieDB(db), root, db.trie.isPruning)
 
-proc newAccountStateDB*(backingStore: TrieDatabaseRef,
-                        root: KeccakHash, pruneTrie: bool): AccountStateDB =
+proc newAccountStateDB*(backingStore: TrieDatabaseRef,root: KeccakHash, pruneTrie: bool): AccountStateDB =
   result.new()
   result.trie = initAccountsTrie(backingStore, root, pruneTrie)
   result.originalRoot = root
@@ -139,9 +138,7 @@ proc getStorageRoot*(db: AccountStateDB, address: EthAddress): Hash256 =
   var account = db.getAccount(address)
   account.storageRoot
 
-proc setStorage*(db: AccountStateDB,
-                 address: EthAddress,
-                 slot: UInt256, value: UInt256) =
+proc setStorage*(db: AccountStateDB, address: EthAddress, slot: UInt256, value: UInt256) =
   info "setStorage", address=address
   var account = db.getAccount(address)
   var accountTrie = getStorageTrie(db, account)
@@ -204,7 +201,6 @@ proc incNonce*(db: AccountStateDB, address: EthAddress) {.inline.} =
 
 proc setCode*(db: AccountStateDB, address: EthAddress, code: openArray[byte]) =
   var account = db.getAccount(address)
-  info "setCode", address=address, code=code
 
   let
     newCodeHash = keccakHash(code)

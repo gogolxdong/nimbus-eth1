@@ -696,7 +696,7 @@ proc execPrecompiles*(computation: Computation, fork: EVMFork): bool {.inline.} 
   if validPrecompileAddr(lb, fork):
     result = true
     let precompile = PrecompileAddresses(lb)
-    #trace "Call precompile", precompile = precompile, codeAddr = computation.msg.codeAddress
+    info "Call precompile", precompile = precompile, codeAddr = computation.msg.codeAddress, contract=computation.msg.contractAddress
     try:
       case precompile
       of paEcRecover: ecRecover(computation)

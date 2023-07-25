@@ -17,7 +17,8 @@ proc eip1559BaseFee(header: BlockHeader; fork: EVMFork): UInt256 =
   if FkLondon <= fork:
     result = header.baseFee
 
-proc commitOrRollbackDependingOnGasUsed(vmState: BaseVMState, accTx: SavePoint,header: BlockHeader, tx: Transaction,gasBurned: GasInt, priorityFee: GasInt): Result[GasInt, string] {.raises: [].} =
+proc commitOrRollbackDependingOnGasUsed*(vmState: BaseVMState, accTx: SavePoint,header: BlockHeader, tx: Transaction,gasBurned: GasInt, priorityFee: GasInt): Result[GasInt, string] {.raises: [].} =
+  info "commitOrRollbackDependingOnGasUsed", vmState=vmState
   if header.gasLimit < vmState.cumulativeGasUsed + gasBurned:
     try:
       vmState.stateDB.rollback(accTx)

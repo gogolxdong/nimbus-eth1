@@ -97,7 +97,7 @@ if not defined(windows):
 --define:nimTypeNames
 --define:deepcopy
 --define:orc
-# --define:useMalloc
+--define:useMalloc
 # --define: nimDumpRpcs
 switch("define", "withoutPCRE")
 

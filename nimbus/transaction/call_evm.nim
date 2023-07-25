@@ -82,7 +82,7 @@ proc rpcCallEvm*(call: RpcCallData, header: BlockHeader, com: CommonRef): CallRe
 
   var dbTx = com.db.db.beginTransaction()
   defer: dbTx.dispose() # always dispose state changes
-
+  info "rpcCallEvm"
   runComputation(params)
 
 proc rpcEstimateGas*(cd: RpcCallData, header: BlockHeader, com: CommonRef, gasCap: GasInt): GasInt {.gcsafe, raises: [CatchableError].} =
@@ -153,6 +153,7 @@ proc rpcEstimateGas*(cd: RpcCallData, header: BlockHeader, com: CommonRef, gasCa
 
     params.gasLimit = gasLimit
     # TODO: bail out on consensus error similar to validateTransaction
+    info "executable"
     runComputation(params).isError
 
   # Execute the binary search and hone in on an executable gas limit
@@ -215,9 +216,9 @@ proc callParamsForTest(tx: Transaction, sender: EthAddress, vmState: BaseVMState
   if tx.txType >= TxEip4844:
     result.versionedHashes = tx.versionedHashes
 
-proc txCallEvm*(tx: Transaction, sender: EthAddress, vmState: BaseVMState, fork: EVMFork): GasInt {.gcsafe, raises: [CatchableError].} =
+proc txCallEvm*(tx: Transaction, sender: EthAddress, vmState: BaseVMState, fork: EVMFork, code: seq[byte] = @[]): GasInt {.gcsafe, raises: [CatchableError].} =
   let call = callParamsForTx(tx, sender, vmState, fork)
-  return runComputation(call).gasUsed
+  return runComputation(call,code).gasUsed
 
 proc testCallEvm*(tx: Transaction, sender: EthAddress, vmState: BaseVMState, fork: EVMFork): CallResult {.gcsafe, raises: [CatchableError].} =
   let call = callParamsForTest(tx, sender, vmState, fork)

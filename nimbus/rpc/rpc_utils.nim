@@ -1,16 +1,8 @@
-# Nimbus
-# Copyright (c) 2018 Status Research & Development GmbH
-# Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-# at your option.
-# This file may not be copied, modified, or distributed except according to
-# those terms.
 
 import hexstrings, eth/[common, keys, trie/db], stew/byteutils,
   ../db/db_chain, strutils, algorithm, options, times, json,
   ../constants, stint, rpc_types,
-  ../utils/utils, ../transaction,
+  ../utils/utils, ../transaction, chronicles,
   ../transaction/call_evm, ../common/evmforks
 
 {.push raises: [].}

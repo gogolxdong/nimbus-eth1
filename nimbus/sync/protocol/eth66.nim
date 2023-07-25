@@ -132,7 +132,7 @@ p2pProtocol eth66(version = ethVersion,
   # User message 0x01: NewBlockHashes.
   proc newBlockHashes(peer: Peer, hashes: openArray[NewBlockHashesAnnounce]) =
     when trEthTraceGossipOk:
-      info trEthRecvReceived & "NewBlockHashes (0x01)", peer, hashes=hashes.mapIt((it.hash, it.number))
+      trace trEthRecvReceived & "NewBlockHashes (0x01)", peer, hashes=hashes.mapIt((it.hash, it.number))
 
     let ctx = peer.networkState()
     ctx.handleNewBlockHashes(peer, hashes)

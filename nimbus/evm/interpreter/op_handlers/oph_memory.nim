@@ -194,7 +194,7 @@ const
       when evmc_enabled:
         sstoreEvmc(cpt, slot, newValue)
       else:
-        info "sstoreOp", cpt=cpt.msg.kind, data=cpt.msg.data
+        # info "sstoreOp", cpt=cpt.msg.kind, data=cpt.msg.data
         sstoreImpl(cpt, slot, newValue)
 
 
@@ -303,7 +303,7 @@ const
   tstoreOp: Vm2OpFn = proc (k: var Vm2Ctx) =
     ## 0x5d, Save word to transient storage.
     checkInStaticContext(k.cpt)
-    info "tstoreOp", cpt=k.cpt.msg.kind
+    # info "tstoreOp", cpt=k.cpt.msg.kind
     let
       slot = k.cpt.stack.popInt()
       val  = k.cpt.stack.popInt()

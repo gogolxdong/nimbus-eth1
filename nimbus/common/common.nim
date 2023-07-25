@@ -1,12 +1,3 @@
-# Nimbus
-# Copyright (c) 2022-2023 Status Research & Development GmbH
-# Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-# at your option.
-# This file may not be copied, modified, or distributed except according to
-# those terms.
-
 {.push raises: [].}
 
 import
@@ -19,7 +10,8 @@ import
   ./genesis,
   ../utils/[utils, ec_recover],
   ../db/[db_chain, storage_types],
-  ../core/[pow, clique, casper]
+  ../core/[pow, clique, casper],
+  lmdb
 
 export
   chain_config,
@@ -43,6 +35,7 @@ type
     # all purpose storage
     db: ChainDBRef
 
+    lmdbEnv*: LMDBEnv
     # prune underlying state db?
     pruneTrie: bool
 
@@ -92,7 +85,7 @@ type
 
     pos: CasperRef
       ## Proof Of Stake descriptor
-
+    forked*: bool
 # ------------------------------------------------------------------------------
 # Forward declarations
 # ------------------------------------------------------------------------------
@@ -137,7 +130,9 @@ proc init(com      : CommonRef,
           pruneTrie: bool,
           networkId: NetworkId,
           config   : ChainConfig,
-          genesis  : Genesis) {.gcsafe, raises: [CatchableError].} =
+          genesis  : Genesis,
+          lmdbEnv: LMDBEnv = newLMDBEnv(".lmdb"),
+          forked: bool = false) {.gcsafe, raises: [CatchableError].} =
 
   config.daoCheck()
 
@@ -172,6 +167,8 @@ proc init(com      : CommonRef,
 
   # By default, history begins at genesis.
   com.startOfHistory = GENESIS_PARENT_HASH
+  com.lmdbEnv = lmdbEnv
+  com.forked = forked
 
 proc getTd(com: CommonRef, blockHash: Hash256): Option[DifficultyInt] =
   var td: DifficultyInt
@@ -195,12 +192,8 @@ proc getTdIfNecessary(com: CommonRef, blockHash: Hash256): Option[DifficultyInt]
 # Public constructors
 # ------------------------------------------------------------------------------
 
-proc new*(_: type CommonRef,
-          db: TrieDatabaseRef,
-          pruneTrie: bool = false,
-          networkId: NetworkId = Bsc,
-          params = networkParams(Bsc)): CommonRef
-            {.gcsafe, raises: [CatchableError].} =
+proc new*(_: type CommonRef,db: TrieDatabaseRef, pruneTrie: bool = false, networkId: NetworkId = Bsc,
+        params = networkParams(Bsc), lmdbEnv = newLMDBEnv(".lmdb"), forked=false): CommonRef {.gcsafe, raises: [CatchableError].} =
 
   ## If genesis data is present, the forkIds will be initialized
   ## empty data base also initialized with genesis block
@@ -210,24 +203,14 @@ proc new*(_: type CommonRef,
     pruneTrie,
     networkId,
     params.config,
-    params.genesis)
+    params.genesis,
+    lmdbEnv,
+    forked)
 
-proc new*(_: type CommonRef,
-          db: TrieDatabaseRef,
-          config: ChainConfig,
-          pruneTrie: bool = false,
-          networkId: NetworkId = Bsc): CommonRef
-            {.gcsafe, raises: [CatchableError].} =
-
-  ## There is no genesis data present
-  ## Mainly used for testing without genesis
+proc new*(_: type CommonRef, db: TrieDatabaseRef,config: ChainConfig,pruneTrie: bool = false,
+    networkId: NetworkId = Bsc, lmdbEnv = newLMDBEnv(".lmdb"), forked=false): CommonRef {.gcsafe, raises: [CatchableError].} =
   new(result)
-  result.init(
-    db,
-    pruneTrie,
-    networkId,
-    config,
-    nil)
+  result.init(db, pruneTrie,networkId,config,nil, lmdbEnv,forked)
 
 proc clone*(com: CommonRef, db: TrieDatabaseRef): CommonRef =
   ## clone but replace the db
@@ -246,7 +229,9 @@ proc clone*(com: CommonRef, db: TrieDatabaseRef): CommonRef =
     consensusType: com.consensusType,
     pow          : com.pow,
     poa          : com.poa,
-    pos          : com.pos
+    pos          : com.pos,
+    lmdbEnv :     com.lmdbEnv,
+    forked: com.forked
   )
 
 proc clone*(com: CommonRef): CommonRef =
@@ -259,9 +244,7 @@ proc clone*(com: CommonRef): CommonRef =
 func toHardFork*(com: CommonRef, forkDeterminer: ForkDeterminationInfo): HardFork =
   toHardFork(com.forkTransitionTable, forkDeterminer)
 
-proc hardForkTransition(
-    com: CommonRef, forkDeterminer: ForkDeterminationInfo)
-    {.gcsafe, raises: [].} =
+proc hardForkTransition(com: CommonRef, forkDeterminer: ForkDeterminationInfo){.gcsafe, raises: [].} =
   ## When consensus type already transitioned to POS,
   ## the storage can choose not to store TD anymore,
   ## at that time, TD is no longer needed to find a fork

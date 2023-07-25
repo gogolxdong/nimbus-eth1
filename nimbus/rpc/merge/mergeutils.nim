@@ -15,6 +15,7 @@ import
   eth/[trie, rlp, common, common/eth_types, trie/db],
   stew/[results, byteutils],
   ../../constants,
+  ../../utils/utils,
   ./mergetypes
 
 type Hash256 = eth_types.Hash256
@@ -55,39 +56,6 @@ proc calcRootHashRlp*(items: openArray[seq[byte]]): Hash256 =
     tr.put(rlp.encode(i), t)
   return tr.rootHash()
 
-proc calcWithdrawalsRoot(withdrawals: seq[WithdrawalV1]): Hash256 =
-  calcRootHashRlp(withdrawals.map(writer.encode))
-
-func maybeWithdrawals*(payload: ExecutionPayloadV1 | ExecutionPayloadV2): Option[seq[WithdrawalV1]] =
-  when payload is ExecutionPayloadV1:
-    none[seq[WithdrawalV1]]()
-  else:
-    some(payload.withdrawals)
-
-proc toBlockHeader*(payload: ExecutionPayloadV1 | ExecutionPayloadV2): EthBlockHeader =
-  let transactions = seq[seq[byte]](payload.transactions)
-  let txRoot = calcRootHashRlp(transactions)
-  
-  EthBlockHeader(
-    parentHash     : payload.parentHash.asEthHash,
-    ommersHash     : EMPTY_UNCLE_HASH,
-    coinbase       : EthAddress payload.feeRecipient,
-    stateRoot      : payload.stateRoot.asEthHash,
-    txRoot         : txRoot,
-    receiptRoot    : payload.receiptsRoot.asEthHash,
-    bloom          : distinctBase(payload.logsBloom),
-    difficulty     : default(DifficultyInt),
-    blockNumber    : payload.blockNumber.distinctBase.u256,
-    gasLimit       : payload.gasLimit.unsafeQuantityToInt64,
-    gasUsed        : payload.gasUsed.unsafeQuantityToInt64,
-    timestamp      : fromUnix payload.timestamp.unsafeQuantityToInt64,
-    extraData      : bytes payload.extraData,
-    mixDigest      : payload.prevRandao.asEthHash, # EIP-4399 redefine `mixDigest` -> `prevRandao`
-    nonce          : default(BlockNonce),
-    # fee            : some payload.baseFeePerGas,
-    # withdrawalsRoot: payload.maybeWithdrawals.map(calcWithdrawalsRoot) # EIP-4895
-  )
-
 proc toWithdrawal*(w: WithdrawalV1): Withdrawal =
   Withdrawal(
     index: uint64(w.index),
@@ -104,6 +72,44 @@ proc toWithdrawalV1*(w: Withdrawal): WithdrawalV1 =
     amount: Quantity(w.amount) # AARDVARK: is this wei or gwei or what?
   )
 
+proc maybeWithdrawalsRoot(payload: ExecutionPayloadV1 | ExecutionPayloadV2): Option[Hash256] =
+  when payload is ExecutionPayloadV1:
+    none(Hash256)
+  else:
+    var wds = newSeqOfCap[Withdrawal](payload.withdrawals.len)
+    for wd in payload.withdrawals:
+      wds.add toWithdrawal(wd)
+    some(utils.calcWithdrawalsRoot(wds))
+
+proc toWithdrawals(withdrawals: openArray[WithdrawalV1]): seq[WithDrawal] =
+  result = newSeqOfCap[Withdrawal](withdrawals.len)
+  for wd in withdrawals:
+    result.add toWithdrawal(wd)
+
+proc toBlockHeader*(payload: ExecutionPayloadV1 | ExecutionPayloadV2): EthBlockHeader =
+  let transactions = seq[seq[byte]](payload.transactions)
+  let txRoot = calcRootHashRlp(transactions)
+
+  EthBlockHeader(
+    parentHash     : payload.parentHash.asEthHash,
+    ommersHash     : EMPTY_UNCLE_HASH,
+    coinbase       : EthAddress payload.feeRecipient,
+    stateRoot      : payload.stateRoot.asEthHash,
+    txRoot         : txRoot,
+    receiptRoot    : payload.receiptsRoot.asEthHash,
+    bloom          : distinctBase(payload.logsBloom),
+    difficulty     : default(DifficultyInt),
+    blockNumber    : payload.blockNumber.distinctBase.u256,
+    gasLimit       : payload.gasLimit.unsafeQuantityToInt64,
+    gasUsed        : payload.gasUsed.unsafeQuantityToInt64,
+    timestamp      : fromUnix payload.timestamp.unsafeQuantityToInt64,
+    extraData      : bytes payload.extraData,
+    mixDigest      : payload.prevRandao.asEthHash, # EIP-4399 redefine `mixDigest` -> `prevRandao`
+    nonce          : default(BlockNonce),
+    fee            : some payload.baseFeePerGas,
+    # withdrawalsRoot: payload.maybeWithdrawalsRoot # EIP-4895
+  )
+
 proc toTypedTransaction*(tx: Transaction): TypedTransaction =
   TypedTransaction(rlp.encode(tx))
 
@@ -112,12 +118,7 @@ proc toBlockBody*(payload: ExecutionPayloadV1 | ExecutionPayloadV2): BlockBody =
   for i, tx in payload.transactions:
     result.transactions[i] = rlp.decode(distinctBase tx, Transaction)
   when payload is ExecutionPayloadV2:
-    let ws = payload.maybeWithdrawals
-    result.withdrawals =
-      if ws.isSome:
-        some(ws.get.map(toWithdrawal))
-      else:
-        none[seq[Withdrawal]]()
+    result.withdrawals = some(payload.withdrawals.toWithdrawals)
 
 proc `$`*(x: BlockHash): string =
   toHex(x)

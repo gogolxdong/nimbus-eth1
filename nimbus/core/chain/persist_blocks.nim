@@ -30,11 +30,7 @@ type
 # Private
 # ------------------------------------------------------------------------------
 
-proc persistBlocksImpl(c: ChainRef; headers: openArray[BlockHeader];
-                       bodies: openArray[BlockBody],
-                       flags: PersistBlockFlags = {}): ValidationResult
-                          # wildcard exception, wrapped below in public section
-                          {.inline, raises: [CatchableError].} =
+proc persistBlocksImpl(c: ChainRef; headers: openArray[BlockHeader];bodies: openArray[BlockBody], flags: PersistBlockFlags = {}): ValidationResult {.inline, raises: [CatchableError].} =
 
   let transaction = c.db.db.beginTransaction()
   defer: transaction.dispose()
@@ -88,10 +84,7 @@ proc persistBlocksImpl(c: ChainRef; headers: openArray[BlockHeader];
           info "PoA header verification failed", blockNumber = header.blockNumber, msg = $rc.error
           return ValidationResult.Error
       else:
-        let res = c.com.validateHeaderAndKinship(
-          header,
-          body,
-          checkSealOK = false) # TODO: how to checkseal from here
+        let res = c.com.validateHeaderAndKinship(header,body,checkSealOK = false) # TODO: how to checkseal from here
         if res.isErr:
           info "block validation error",
             msg = res.error

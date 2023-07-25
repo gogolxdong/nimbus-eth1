@@ -361,9 +361,7 @@ proc sendBlockOrHash(ctx: LegacySyncRef, peer: Peer) {.async.} =
         error "failed to get block hash", number=blockNumber
         return
 
-      hashes.add(NewBlockHashesAnnounce(
-        number: blockNumber,
-        hash: hash))
+      hashes.add(NewBlockHashesAnnounce(number: blockNumber,hash: hash))
 
       if hashes.len == maxHeadersFetch:
         trace "send newBlockHashes(batch)", numHashes=hashes.len, peer

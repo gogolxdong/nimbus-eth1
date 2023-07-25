@@ -57,8 +57,7 @@ when evmc_enabled:
         c.res.release(c.res)
 
 else:
-  proc execSubCreate(c: Computation; childMsg: Message;
-                    salt: ContractSalt = ZERO_CONTRACTSALT) =
+  proc execSubCreate(c: Computation; childMsg: Message; salt: ContractSalt = ZERO_CONTRACTSALT) =
     ## Create new VM -- helper for `Create`-like operations
 
     # need to provide explicit <c> and <child> for capturing in chainTo proc()
@@ -112,19 +111,13 @@ const
     k.cpt.returnData.setLen(0)
 
     if k.cpt.msg.depth >= MaxCallDepth:
-      debug "Computation Failure",
-        reason = "Stack too deep",
-        maxDepth = MaxCallDepth,
-        depth = k.cpt.msg.depth
+      debug "Computation Failure", reason = "Stack too deep", maxDepth = MaxCallDepth, depth = k.cpt.msg.depth
       return
 
     if endowment != 0:
       let senderBalance = k.cpt.getBalance(k.cpt.msg.contractAddress)
       if senderBalance < endowment:
-        debug "Computation Failure",
-          reason = "Insufficient funds available to transfer",
-          required = endowment,
-          balance = senderBalance
+        info "Computation Failure", reason = "Insufficient funds available to transfer", required = endowment, balance = senderBalance
         return
 
     var createMsgGas = k.cpt.gasMeter.gasRemaining

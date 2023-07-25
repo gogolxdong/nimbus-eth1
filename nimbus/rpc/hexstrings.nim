@@ -1,15 +1,3 @@
-# Nimbus
-# Copyright (c) 2018 Status Research & Development GmbH
-# Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE))
-#  * MIT license ([LICENSE-MIT](LICENSE-MIT))
-# at your option.
-# This file may not be copied, modified, or distributed except according to
-# those terms.
-
-## This module implements the Ethereum hexadecimal string formats for JSON
-## See: https://github.com/ethereum/wiki/wiki/JSON-RPC#hex-value-encoding
-
 #[
   Note:
   The following types are converted to hex strings when marshalled to JSON:
@@ -28,7 +16,7 @@
 
 import
   std/strutils,
-  stint, stew/byteutils, eth/keys,
+  stint, stew/byteutils, eth/keys, eth/rlp/writer,eth/rlp/priv/defs, eth/rlp/writer,
   eth/common/eth_types,
   json_serialization
 
@@ -40,6 +28,8 @@ type
   HexStrings = HexQuantityStr | HexDataStr | EthAddressStr | EthHashStr
 
 template len*(value: HexStrings): int = value.string.len
+
+
 
 # Hex validation
 

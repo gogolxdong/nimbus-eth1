@@ -1,13 +1,3 @@
-# Nimbus
-# Copyright (c) 2018 Status Research & Development GmbH
-# Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or
-#    http://www.apache.org/licenses/LICENSE-2.0)
-#  * MIT license ([LICENSE-MIT](LICENSE-MIT) or
-#    http://opensource.org/licenses/MIT)
-# at your option. This file may not be copied, modified, or distributed except
-# according to those terms.
-
 import
   math,
   ../../common/common,
@@ -46,7 +36,7 @@ proc processTransactions*(vmState: BaseVMState; header: BlockHeader; transaction
     let rc = vmState.processTransaction(tx, sender, header)
     if rc.isErr:
       let debugTx =tx.debug()
-      return err("Error processing tx with index " & $(txIndex) & ": " & tx.repr)
+      return err("Error processing tx with index " & $(txIndex) & ":\n" & debugTx & "\n" & rc.error)
     vmState.receipts[txIndex] = vmState.makeReceipt(tx.txType)
   ok()
 
@@ -64,11 +54,10 @@ proc procBlkPreamble(vmState: BaseVMState; header: BlockHeader; body: BlockBody)
     if body.transactions.len == 0:
       info "No transactions in body", blockNumber = header.blockNumber
       return false
-    # else:
-      # info "Has transactions",  blockNumber = header.blockNumber, blockHash = header.blockHash
-      # let r = processTransactions(vmState, header, body.transactions)
-      # if r.isErr:
-      #   error("error in processing transactions", err=r.error)
+    else:
+      let r = processTransactions(vmState, header, body.transactions)
+      if r.isErr:
+        error("error in processing transactions", err=r.error)
 
   # if vmState.determineFork >= FkShanghai:
   #   if header.withdrawalsRoot.isNone:

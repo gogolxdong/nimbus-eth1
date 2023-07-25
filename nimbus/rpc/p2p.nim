@@ -5,17 +5,21 @@ import
   json_rpc/[rpcserver,jsonmarshal], hexstrings, stint, stew/byteutils,
   json_serialization, web3/conversions, json_serialization/std/options,
   eth/common/[eth_types_json_serialization, eth_types],
-  eth/[keys, rlp, p2p],
+  eth/[keys, rlp, p2p], lmdb,
   ".."/[transaction, vm_state, constants],
   ../db/[state_db, incomplete_db, distinct_tries, storage_types],
   rpc_types, rpc_utils,
   ../transaction/call_evm,
-  ../core/tx_pool,
+  ../core/tx_pool, ../core/chain/[chain_desc, persist_blocks],
   ../common/[common, context],
   ../utils/utils,
   ./filters, ../evm/async/data_sources/json_rpc_data_source,
-  ../evm/[types, state], ../db/accounts_cache
+  ../evm/[types, state], ../db/accounts_cache, ../stateless_runner, ../core/executor/process_transaction,
+  ../rpc/hexstrings
+  
 
+
+from web3 import Web3, BlockHash, FixedBytes, Address, ProofResponse, StorageProof, newWeb3, fromJson, fromHex, eth_getBlockByHash, eth_getBlockByNumber, eth_getCode, eth_getProof, blockId, `%`
 
 #[
   Note:
@@ -225,62 +229,74 @@ proc setupEthRpc*(
     result = rlpHash(signedTx).ethHashStr
 
   server.rpc("eth_sendRawTransaction") do(data: HexDataStr) -> EthHashStr:
-    let
+    var
       txBytes = hexToSeqByte(data.string)
       signedTx = decodeTx(txBytes)
+      txHash = rlpHash(signedTx)
 
-    # txPool.add(signedTx)
-    let header = chainDB.headerFromTag("latest")
-    var vmState = BaseVMState.new(header, com)
-    let fork = vmState.com.toEVMFork(header.forkDeterminationInfoForHeader)
-
-    var sender = signedTx.getSender()
-    var contractAddress = getRecipient(signedTx, sender)
-
-    var balance = vmState.stateDB.getBalance(sender)
-    if balance == 0.u256:
-      let header = chainDB.getCanonicalHead()
-      var client = waitFor makeAnRpcClient("http://149.28.74.252:8545")
-      let (acc, accProof, storageProofs) = waitFor fetchAccountAndSlots(client, sender, @[], header.blockNumber)
-      var accBalance = acc.balance
-
-      populateDbWithBranch(chainDB.db, accProof)
-      info "setBalance", sender=sender, accBalance=accBalance, blockNumber=header.blockNumber.toHex
-      for index, storageProof in storageProofs:
-        let slot: UInt256 = storageProof.key
-        let fetchedVal: UInt256 = storageProof.value
-        let storageMptNodes: seq[seq[byte]] = storageProof.proof.mapIt(distinctBase(it))
-        let storageVerificationRes = verifyFetchedSlot(acc.storageRoot, slot, fetchedVal, storageMptNodes)
-        let whatAreWeVerifying = ("storage proof", sender, acc, slot, fetchedVal)
-        raiseExceptionIfError(whatAreWeVerifying, storageVerificationRes)
-
-        populateDbWithBranch(chainDB.db, storageMptNodes)
-        let slotAsKey = createTrieKeyFromSlot(slot)
-        let slotHash = keccakHash(slotAsKey)
-        let slotEncoded = rlp.encode(slot)
-        chainDB.db.put(slotHashToSlotKey(slotHash.data).toOpenArray, slotEncoded)
-    let accTx = vmState.stateDB.beginSavepoint
-    let gasBurned = signedTx.txCallEvm(sender, vmState, fork)
-    vmState.stateDB.commit(accTx)
-    balance = vmState.stateDB.getBalance(sender)
-
+    txPool.add(signedTx)
     result = rlpHash(signedTx).ethHashStr
-    info "eth_sendRawTransaction", data=data.string, result=result.string, balance=balance, gasBurned=gasBurned,contractAddress=contractAddress
+
+    com.forked = true
+    if com.forked:
+      if signedTx.to.isNone:
+        var txn = com.lmdbEnv.newTxn()
+        let dbi = txn.dbiOpen("", 0)
+        var sender = signedTx.getSender()
+        var contractAddress = getRecipient(signedTx, sender)
+        var dbKey = txHash.genericHashKey
+
+        var keyVal = Val(mvSize: dbKey.dataEndPos.uint, mvData: dbKey.data[0].addr)
+        var dataVal = Val(mvSize: txBytes.len.uint, mvData: txBytes[0].addr)
+        var ret = txn.put(dbi, keyVal.addr, dataVal.addr, 0)
+        if ret == 0:
+          txn.commit()
+          info "eth_sendRawTransaction", payload=signedTx.payload.len, createContract=contractAddress, mvSize=result.len, mvData=result.string
+        else:
+          info "eth_sendRawTransaction", ret=ret
+          txn.abort()
+
+    # info "eth_sendRawTransaction", data=data.string[0..31], result=result.string
 
   server.rpc("eth_getTransactionByHash") do(data: EthHashStr) -> Option[TransactionObject]:
-    info "eth_getTransactionByHash", data=data.string
-    let txDetails = chainDB.getTransactionKey(data.toHash())
-    if txDetails.index < 0:
-      return none(TransactionObject)
+    # var state = stateDBFromTag("latest")
+    # var codeHash = state.AccountStateDB.getCodeHash(EthAddress.fromHex(data.string))
+    if com.forked:
+      let header = chainDB.headerFromTag("latest")
 
-    let header = chainDB.getBlockHeader(txDetails.blockNumber)
-    info "eth_getTransactionByHash", header=header
-    var tx: Transaction
-    if chainDB.getTransaction(header.txRoot, txDetails.index, tx):
-      result = some(populateTransactionObject(tx, header, txDetails.index))
+      var txn = com.lmdbEnv.newTxn()
+      let dbi = txn.dbiOpen("", 0)
+      var dbKey = genericHashKey Hash256.fromHex data.string 
+
+      var txHash = data.string
+      info "eth_getTransactionByHash", dbKey=dbKey
+
+      # var dbKey = transactionHashToBlockKey(txHash)
+      var keyVal = Val(mvSize: dbKey.dataEndPos.uint, mvData: dbKey.data[0].addr)
+      var dataVal: Val
+      var ret = txn.get(dbi, keyVal.addr, dataVal.addr)
+      result = some default TransactionObject
+      txn.abort()
+      if ret == 0:
+        var dataPtr = cast[ptr UncheckedArray[byte]](dataVal.mvData)
+        # var dataArray = toSeq dataPtr.toOpenArray(0, dataVal.mvSize.int - 1)
+        # info "eth_getTransactionByHash dataPtr", dataVal=dataVal, dataPtr= dataArray
+        var tx = decodeTx dataPtr.toOpenArray(0, dataVal.mvSize.int - 1)
+        result = some populateTransactionObject(tx, header, 0)
+      elif ret == NOTFOUND:
+        info "eth_getTransactionByHash", ret="NOTFOUND", data=data.string
+        
+    else:
+      let txDetails = chainDB.getTransactionKey(data.toHash())
+      if txDetails.index < 0:
+        return none(TransactionObject)
+      let header = chainDB.getBlockHeader(txDetails.blockNumber)
+      var tx: Transaction
+      if chainDB.getTransaction(header.txRoot, txDetails.index, tx):
+        info "eth_getTransactionByHash",data=data.string, blockNumber=txDetails.blockNumber, index=txDetails.index, header=header, nonce=tx.nonce, gasPrice=tx.gasPrice,gasLimit=tx.gasLimit
+        result = some(populateTransactionObject(tx, header, txDetails.index))
 
   proc eth_call(params: JsonNode): Future[StringOfJson] {.gcsafe.} =
-    info "eth_call", params=params
     try:
       var to = if params[0].hasKey("to"): params[0]["to"].getStr() else : ""
       var call : EthCall
@@ -288,12 +304,12 @@ proc setupEthRpc*(
       var data = params.elems[0]["data"].getStr
       if to == "":
         call = EthCall(source: some EthAddressStr source, 
-                            data: some HexDataStr data)
+                      data: some HexDataStr data)
       else:
         call = EthCall(source: some EthAddressStr source, 
-                        to: some EthAddressStr params.elems[0]["to"].getStr,
-                            data: some HexDataStr data)
-      let header = chainDB.headerFromTag("0x0")
+                      to: some EthAddressStr params.elems[0]["to"].getStr,
+                      data: some HexDataStr data)
+      let header = chainDB.headerFromTag("latest")
       let callData = callData(call)
       info "eth_call", source=call.source.get.string, to=call.to.get.string, data=call.data.get.string, callData=callData, header=header
       let res = rpcCallEvm(callData, header, com)
@@ -329,7 +345,7 @@ proc setupEthRpc*(
       result.complete StringOfJson $gasUsed
     
     except:
-      echo getCurrentExceptionMsg()
+      echo "eth_estimateGas:",getCurrentExceptionMsg()
 
   server.router.register("eth_estimateGas", eth_estimateGas)
   # server.rpc("eth_estimateGas") do(call: EthCall) -> HexQuantityStr:

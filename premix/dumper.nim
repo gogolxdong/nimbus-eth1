@@ -61,4 +61,4 @@ when isMainModule:
   try:
     main()
   except:
-    echo getCurrentExceptionMsg()
+    echo "main:", getCurrentExceptionMsg()

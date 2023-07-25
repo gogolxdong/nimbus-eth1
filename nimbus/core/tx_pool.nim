@@ -545,9 +545,7 @@ proc smartHead*(xp: TxPoolRef; pos: BlockHeader; blindMode = false): bool {.gcsa
 
     # Re-inject transactions, do that via job queue
     if 0 < changes.addTxs.len:
-      debug "queuing delta txs",
-        mode = "inject",
-        num = changes.addTxs.len
+      debug "queuing delta txs", mode = "inject", num = changes.addTxs.len
       xp.pDoubleCheckAdd xp.addTxs(toSeq(changes.addTxs.nextValues)).topItems
 
     # Delete already *mined* transactions
@@ -560,8 +558,7 @@ proc smartHead*(xp: TxPoolRef; pos: BlockHeader; blindMode = false): bool {.gcsa
     xp.maintenanceProcessing
     return true
 
-proc triggerReorg*(xp: TxPoolRef)
-    {.gcsafe,raises: [CatchableError].} =
+proc triggerReorg*(xp: TxPoolRef) {.gcsafe,raises: [CatchableError].} =
   ## This function triggers a tentative bucket re-org action by setting the
   ## `dirtyBuckets` parameter. This re-org action eventually happens only if
   ## the `autoUpdateBucketsDB` flag is also set.
@@ -812,9 +809,7 @@ proc accountRanks*(xp: TxPoolRef): TxTabsLocality =
   ## means that the order may be out-dated after adding transactions.
   xp.txDB.locality
 
-proc addRemote*(xp: TxPoolRef;
-                tx: Transaction; force = false): Result[void,TxInfo]
-    {.gcsafe,raises: [CatchableError].} =
+proc addRemote*(xp: TxPoolRef; tx: Transaction; force = false): Result[void,TxInfo] {.gcsafe,raises: [CatchableError].} =
   ## Adds the argument transaction `tx` to the buckets database.
   ##
   ## If the argument `force` is set `false` and the sender account of the
@@ -846,9 +841,7 @@ proc addRemote*(xp: TxPoolRef;
   xp.add(tx, "remote tx")
   ok()
 
-proc addLocal*(xp: TxPoolRef;
-               tx: Transaction; force = false): Result[void,TxInfo]
-    {.gcsafe,raises: [CatchableError].} =
+proc addLocal*(xp: TxPoolRef; tx: Transaction; force = false): Result[void,TxInfo] {.gcsafe,raises: [CatchableError].} =
   ## Adds the argument transaction `tx` to the buckets database.
   ##
   ## If the argument `force` is set `false` and the sender account of the

@@ -104,6 +104,7 @@ proc statelesslyRunBlock*(asyncDataSource: AsyncDataSource, com: CommonRef, hash
 
 
 proc statelesslyRunTransaction*(asyncDataSource: AsyncDataSource, com: CommonRef, headerHash: Hash256, tx: Transaction) =
+  info "statelesslyRunTransaction", headerHash=headerHash
   let t0 = now()
 
   let (header, body) = waitFor(asyncDataSource.fetchBlockHeaderAndBodyWithHash(headerHash))

@@ -1,10 +1,7 @@
 import strutils, eth/db/kvstore
+import ./kvstore_lmdb
 
 export kvstore
-
-# Database access layer that turns errors in the database into Defects as the
-# code that uses it isn't equipped to handle errors of that kind - this should
-# be reconsidered when making more changes here.
 
 type DbBackend* = enum
   none,
@@ -54,12 +51,9 @@ elif dbBackend == rocksdb:
     let rdb = RocksStoreRef.init(path, "nimbus").tryGet()
     ChainDB(kv: kvStore rdb, rdb: rdb)
 elif dbBackend == lmdb:
-  # TODO This implementation has several issues on restricted platforms, possibly
-  #      due to mmap restrictions - see:
-  #      https://github.com/status-im/nim-beacon-chain/issues/732
-  #      https://github.com/status-im/nim-beacon-chain/issues/688
-  # It also has other issues, including exception safety:
-  #      https://github.com/status-im/nim-beacon-chain/pull/809
+  proc newChainDB*(path = getCurrentDir() / ".lmdb"): ChainDB =
+    var lmdbStoreRef = LMDBStoreRef.init(path).get()
+    ChainDB(kv: kvStore lmdbStoreRef)
 
   {.error: "lmdb deprecated, needs reimplementing".}
 elif dbBackend == none:

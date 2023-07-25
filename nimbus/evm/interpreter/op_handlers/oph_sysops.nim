@@ -1,12 +1,4 @@
-# Nimbus
-# Copyright (c) 2018 Status Research & Development GmbH
-# Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or
-#    http://www.apache.org/licenses/LICENSE-2.0)
-#  * MIT license ([LICENSE-MIT](LICENSE-MIT) or
-#    http://opensource.org/licenses/MIT)
-# at your option. This file may not be copied, modified, or distributed except
-# according to those terms.
+
 
 ## EVM Opcode Handlers: System Operations
 ## ======================================
@@ -26,7 +18,7 @@ import
   ./oph_defs,
   ./oph_helpers,
   eth/common,
-  stint
+  stint, chronicles
 
 {.push raises: [CatchableError].} # basically the annotation type of a `Vm2OpFn`
 
@@ -43,13 +35,11 @@ const
   returnOp: Vm2OpFn = proc(k: var Vm2Ctx) =
     ## 0xf3, Halt execution returning output data.
     let (startPos, size) = k.cpt.stack.popInt(2)
-
     let (pos, len) = (startPos.cleanMemRef, size.cleanMemRef)
-    k.cpt.gasMeter.consumeGas(
-      k.cpt.gasCosts[Return].m_handler(k.cpt.memory.len, pos, len),
-      reason = "RETURN")
+    k.cpt.gasMeter.consumeGas(k.cpt.gasCosts[Return].m_handler(k.cpt.memory.len, pos, len), reason = "RETURN")
     k.cpt.memory.extend(pos, len)
     k.cpt.output = k.cpt.memory.read(pos, len)
+    # info "returnOp", output=k.cpt.output
 
 
   revertOp: Vm2OpFn = proc(k: var Vm2Ctx) =

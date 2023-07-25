@@ -1,15 +1,18 @@
-import tables, stint, eth/common, chronicles
+import tables, stint, eth/common, chronicles, strformat
 
 type
   StorageTable = ref object
-    map: Table[UInt256, UInt256]
+    map*: Table[UInt256, UInt256]
 
   TransientStorage* = object
-    map: Table[EthAddress, StorageTable]
+    map*: Table[EthAddress, StorageTable]
 
 #######################################################################
 # Private helpers
 #######################################################################
+proc `$`*(storageRef: StorageTable):string = 
+  for slot, value in storageRef.map:
+    result.add &"slot: {slot} value: {value}\n"
 
 proc merge(a, b: StorageTable) =
   for k, v in b.map:

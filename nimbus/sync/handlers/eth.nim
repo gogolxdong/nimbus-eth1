@@ -13,13 +13,14 @@ import
   ../../core/[chain, tx_pool, tx_pool/tx_item, tx_pool/tx_desc, tx_pool/tx_tasks/tx_dispose, tx_pool/tx_tasks/tx_add, tx_pool/tx_tabs],
   ../../core/executor/[process_transaction, process_block],
   ../../evm/[types,state],
-  ../../db/[storage_types,accounts_cache, state_db, incomplete_db, distinct_tries],
+  ../../db/[storage_types,accounts_cache, state_db, incomplete_db, distinct_tries, db_chain],
   ../../evm/async/data_sources/json_rpc_data_source, ../../evm/async/[data_sources, operations],
   ../../stateless_runner,
   ../../transaction/call_evm,
   ../../rpc/rpc_utils,
   ../../transaction,
-  ../../tracer
+  ../../tracer, 
+  lmdb
   
 
 from web3 import eth_getBalance, BlockIdentifier, Address, newWeb3, close
@@ -449,32 +450,44 @@ method handleAnnouncedTxs*(ctx: EthWireRef, peer: Peer, txs: openArray[Transacti
     var body = ctx.db.getBlockBody(header.blockHash)
     
     var asyncOperationFactory = AsyncOperationFactory(maybeDataSource: some(ctx.asyncDataSource))
-    info "handleAnnouncedTxs", parentHash=header.parentHash, headerHash=header.blockHash, txs=txs.len
+    # info "handleAnnouncedTxs", parentHash=header.parentHash, headerHash=header.blockHash, txs=txs.len
     let parentHeader = waitFor ctx.asyncDataSource.fetchBlockHeaderWithHash(header.parentHash)
 
     let vmState = createVmStateForStatelessMode(ctx.chain.com, header, body, parentHeader, asyncOperationFactory).get
 
     let fork = vmState.com.toEVMFork(header.forkDeterminationInfoForHeader)
-    # var client = waitFor newWeb3("http://149.28.74.252:8545")
-    # defer: waitFor client.close()
 
     for tx in txs:
       var sender = tx.getSender()
-      waitFor vmState.ifNecessaryGetAccount(sender)
+      if tx.contractCreation.not:
+        waitFor vmState.ifNecessaryGetAccount(sender)
+        var to = tx.getRecipient(sender)
 
-      # var accBalance = acc.balance
-
-      var balance1 = vmState.stateDB.getBalance(sender)
-      let accTx = vmState.stateDB.beginSavepoint
-      let gasBurned = tx.txCallEvm(sender, vmState, fork)
-      
-      vmState.stateDB.commit(accTx)
-      # vmState.stateDB.persist()
-      var balance2 = vmState.stateDB.getBalance(sender)
-      info "txCallEvm", blockNumber=header.blockNumber.toHex, txHash = tx.rlpHash, gasBurned=gasBurned, sender=sender, nonce=tx.nonce, gasPrice=tx.gasPrice, gasLimit=tx.gasLimit, balance1=balance1, balance2=balance2, pruneTrie=ctx.chain.com.pruneTrie
+        var code: seq[byte]
+        var balance1 = vmState.stateDB.getBalance(sender)
+        let accTx = vmState.stateDB.beginSavepoint
+        try:
+          var txn = ctx.chain.com.lmdbEnv.newTxn()
+          let dbi = txn.dbiOpen("", 0)
+          var keyVal = Val(mvSize: to.len.uint, mvData: to[0].unsafeAddr)
+          var dataVal: Val
+          var ret = txn.get(dbi, keyVal.addr, dataVal.addr) 
+          txn.abort()
+          if ret == 0:
+            var dataPtr = cast[ptr UncheckedArray[byte]](dataVal.mvData)
+            code = toSeq dataPtr.toOpenArray(0, dataVal.mvSize.int - 1)
+          elif ret == NOTFOUND:
+            info "handleAnnouncedTxs", ret="NOTFOUND"
+        except:
+          error "setupHost", error=getCurrentExceptionMsg()
+        let gasBurned = tx.txCallEvm(sender, vmState, fork, code)
+        
+        vmState.stateDB.commit(accTx)
+        var balance2 = vmState.stateDB.getBalance(sender)
+        info "handleAnnouncedTxs", to=to,code=code.len, blockNumber=header.blockNumber.toHex, txHash = tx.rlpHash, gasBurned=gasBurned, sender=sender, nonce=tx.nonce, gasPrice=tx.gasPrice, gasLimit=tx.gasLimit, balance1=balance1, balance2=balance2, pruneTrie=ctx.chain.com.pruneTrie
     
   except:
-    echo getCurrentExceptionMsg()
+    echo "handleAnnouncedTxs:", getCurrentExceptionMsg()
 
   if ctx.lastCleanup - getTime() > POOLED_STORAGE_TIME_LIMIT:
     ctx.cleanupKnownByPeer()
@@ -548,16 +561,18 @@ method handleNewBlock*(ctx: EthWireRef, peer: Peer, blk: EthBlock, totalDifficul
     # let asyncDataSource = realAsyncDataSource(ctx.peerPool, rpcClient, false)
     # let asyncFactory = AsyncOperationFactory(maybeDataSource: some(asyncDataSource))
     # let parentHeader = waitFor(asyncDataSource.fetchBlockHeaderWithHash(blk.header.parentHash))
-    let body = BlockBody(transactions: blk.txs, uncles: blk.uncles)
-    var res = ctx.chain.persistBlocks([blk.header], [body])
-    if res == ValidationResult.Error:
-      error "handleNewBlock", err=res
-      return
-    res = ctx.chain.setCanonical(blk.header)
-    if res == ValidationResult.Error:
-      error "setCanonical", err=res
-      return
-    info "handleNewBlock", peer=peer, blk=blk.header.blockNumber, totalDifficulty=totalDifficulty
+    var headerExists = ctx.db.headerExists(blk.header.parentHash)
+    if headerExists.not:
+      let body = BlockBody(transactions: blk.txs, uncles: blk.uncles)
+      var res = ctx.chain.persistBlocks([blk.header], [body])
+      if res == ValidationResult.Error:
+        error "handleNewBlock", err=res
+        return
+      res = ctx.chain.setCanonical(blk.header)
+      if res == ValidationResult.Error:
+        error "setCanonical", err=res
+        return
+      info "handleNewBlock", peer=peer, blk=blk.header.blockNumber, totalDifficulty=totalDifficulty
     # var vmState = BaseVMState.new(blk.header, ctx.chain.com)
     # ctx.chain.com.dumpDebuggingMetaData(blk.header, body, vmState, false)
   except:
@@ -582,7 +597,7 @@ method handleNewBlockHashes*(ctx: EthWireRef, peer: Peer, hashes: openArray[NewB
         var header = waitFor peer.getBlockHeaders(request)
         ctx.db.db.put(hashKey.toOpenArray, rlp.encode header)
   except:
-    echo getCurrentExceptionMsg()
+    echo "handleNewBlockHashes:", getCurrentExceptionMsg()
 
   # if not ctx.newBlockHashesHandler.handler.isNil:
   #   ctx.newBlockHashesHandler.handler(ctx.newBlockHashesHandler.arg, peer, hashes)

@@ -443,16 +443,18 @@ proc ifNecessaryGetAccountAndSlots*(client: RpcClient, db: TrieDatabaseRef, bloc
           assertThatWeHaveStoredSlot(trie2, address, acc, slot, fetchedVal, true)
 
 proc ifNecessaryGetCode*(client: RpcClient, db: TrieDatabaseRef, blockNumber: BlockNumber, stateRoot: Hash256, address: EthAddress, justChecking: bool, newStateRootForSanityChecking: Hash256): Future[void] {.async.} =
-  await ifNecessaryGetAccountAndSlots(client, db, blockNumber, stateRoot, address, @[], false, false, newStateRootForSanityChecking)  # to make sure we've got the codeHash
+  await ifNecessaryGetAccountAndSlots(client, db, blockNumber, stateRoot, address, @[], false, false, newStateRootForSanityChecking) 
   let trie = initAccountsTrie(db, stateRoot, false)  # important for sanity checks
 
   let acc = ifNodesExistGetAccount(trie, address).get
   let desiredCodeHash = acc.codeHash
 
   let p = (blockNumber, address)
-  # info "ifNecessaryGetCode", blockNumber=blockNumber, stateRoot=stateRoot, address=address, newStateRootForSanityChecking=newStateRootForSanityChecking, hasAllNodesForCode=trie.hasAllNodesForCode(address)
+  var hasAllNodesForCode = trie.hasAllNodesForCode(address)
+  info "ifNecessaryGetCode", blockNumber=blockNumber, stateRoot=stateRoot, address=address, newStateRootForSanityChecking=newStateRootForSanityChecking, hasAllNodesForCode=hasAllNodesForCode
+  # if $address == "91b8f709469e8ba76aaeff404056af3172560184" :
 
-  if not(trie.hasAllNodesForCode(address)):
+  if not hasAllNodesForCode:
     let fetchedCode = await fetchAndVerifyCode(client, p, desiredCodeHash)
 
     if not justChecking:

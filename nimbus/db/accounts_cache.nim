@@ -1,15 +1,7 @@
-# Nimbus
-# Copyright (c) 2023 Status Research & Development GmbH
-# Licensed under either of
-#  * Apache License, version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or
-#    http://www.apache.org/licenses/LICENSE-2.0)
-#  * MIT license ([LICENSE-MIT](LICENSE-MIT) or
-#    http://opensource.org/licenses/MIT)
-# at your option. This file may not be copied, modified, or distributed except
-# according to those terms.
+
 
 import
-  std/[tables, hashes, sets],
+  std/[tables, hashes, sets, strformat],
   eth/[common, rlp], eth/trie/[hexary, db, trie_defs], chronicles,
   ../constants, ../utils/utils, storage_types,
   ../../stateless/multi_keys,
@@ -35,9 +27,9 @@ type
   RefAccount = ref object
     account*: Account
     flags: AccountFlags
-    code: seq[byte]
-    originalStorage: TableRef[UInt256, UInt256]
-    overlayStorage: Table[UInt256, UInt256]
+    code*: seq[byte]
+    originalStorage*: TableRef[UInt256, UInt256]
+    overlayStorage*: Table[UInt256, UInt256]
 
   WitnessData* = object
     storageKeys*: HashSet[UInt256]
@@ -151,25 +143,37 @@ proc rollback*(ac: var AccountsCache, sp: SavePoint) =
     inspectSavePoint("rollback", ac.savePoint)
 
 proc commit*(ac: var AccountsCache, sp: SavePoint) =
-  # Transactions should be handled in a strictly nested fashion.
-  # Any child transaction must be committed or rolled-back before
-  # its parent transactions:
-  doAssert ac.savePoint == sp and sp.state == Pending
-  # cannot commit most inner savepoint
-  doAssert not sp.parentSavepoint.isNil
+  try:
+    var cacheString:string
+    for address, account in sp.cache:
+      if account.originalStorage.isNil.not or account.overlayStorage.len > 0:
+        cacheString.add &"address:{address}"
+        for k, v in account.originalStorage:
+          cacheString.add &" originalStorage: {k} {v}"
+        for k, v in account.overlayStorage:
+          cacheString.add &" overlayStorage: {k} {v}"
+    # info "commit", transientStorage = sp.transientStorage.map, cache=cacheString
+    # Transactions should be handled in a strictly nested fashion.
+    # Any child transaction must be committed or rolled-back before
+    # its parent transactions:
+    doAssert ac.savePoint == sp and sp.state == Pending
+    # cannot commit most inner savepoint
+    doAssert not sp.parentSavepoint.isNil
 
-  ac.savePoint = sp.parentSavepoint
-  for k, v in sp.cache:
-    sp.parentSavepoint.cache[k] = v
+    ac.savePoint = sp.parentSavepoint
+    for k, v in sp.cache:
+      sp.parentSavepoint.cache[k] = v
 
-  ac.savePoint.transientStorage.merge(sp.transientStorage)
-  ac.savePoint.accessList.merge(sp.accessList)
-  ac.savePoint.selfDestruct.incl sp.selfDestruct
-  ac.savePoint.logEntries.add sp.logEntries
-  sp.state = Committed
+    ac.savePoint.transientStorage.merge(sp.transientStorage)
+    ac.savePoint.accessList.merge(sp.accessList)
+    ac.savePoint.selfDestruct.incl sp.selfDestruct
+    ac.savePoint.logEntries.add sp.logEntries
+    sp.state = Committed
 
-  when debugAccountsCache:
-    inspectSavePoint("commit", ac.savePoint)
+    when debugAccountsCache:
+      inspectSavePoint("commit", ac.savePoint)
+  except:
+    echo "commit:",getCurrentExceptionMsg()
 
 proc dispose*(ac: var AccountsCache, sp: SavePoint) {.inline.} =
   if sp.state == Pending:
@@ -252,8 +256,7 @@ template getStorageTrie(db: TrieDatabaseRef, acc: RefAccount): auto =
   initStorageTrie(db, acc.account.storageRoot, false)
 
 proc originalStorageValue(acc: RefAccount, slot: UInt256, db: TrieDatabaseRef): UInt256 =
-  # share the same original storage between multiple
-  # versions of account
+  # share the same original storage between multiple versions of account
   if acc.originalStorage.isNil:
     acc.originalStorage = newTable[UInt256, UInt256]()
   else:
@@ -625,8 +628,7 @@ iterator cachedStorage*(ac: AccountsCache, address: EthAddress): (UInt256, UInt2
         yield (k, v)
 
 proc getStorageRoot*(ac: AccountsCache, address: EthAddress): Hash256 =
-  # beware that if the account not persisted,
-  # the storage root will not be updated
+  # beware that if the account not persisted, the storage root will not be updated
   let acc = ac.getAccount(address, false)
   if acc.isNil: emptyAcc.storageRoot
   else: acc.account.storageRoot
@@ -707,6 +709,7 @@ func getTransientStorage*(ac: AccountsCache,
     sp = sp.parentSavepoint
 
 proc setTransientStorage*(ac: AccountsCache,address: EthAddress, slot, val: UInt256) =
+  # info "setTransientStorage", address=address, slot=slot, val=val
   ac.savePoint.transientStorage.setStorage(address, slot, val)
 
 proc clearTransientStorage*(ac: AccountsCache) {.inline.} =

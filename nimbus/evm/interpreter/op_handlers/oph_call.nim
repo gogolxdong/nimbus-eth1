@@ -171,7 +171,7 @@ when evmc_enabled:
 else:
   proc execSubCall(c: Computation; childMsg: Message; memPos, memLen: int) =
     ## Call new VM -- helper for `Call`-like operations
-
+    
     # need to provide explicit <c> and <child> for capturing in chainTo proc()
     # <memPos> and <memLen> are provided by value and need not be captured
     var
@@ -205,6 +205,7 @@ const
         "Cannot modify state while inside of a STATICCALL context")
     
     let p = cpt.callParams
+    info "callOp", p = p
     cpt.asyncChainTo(ifNecessaryGetAccounts(cpt.vmState, @[p.sender])):
       cpt.asyncChainTo(ifNecessaryGetCodeForAccounts(cpt.vmState, @[p.contractAddress, p.codeAddress])):
         var (gasCost, childGasLimit) = cpt.gasCosts[Call].c_handler(
@@ -218,19 +219,14 @@ const
             c_memOffset:      p.memOffset,
             c_memLength:      p.memLength))
 
-        # EIP 2046: temporary disabled
-        # reduce gas fee for precompiles
-        # from 700 to 40
+        # EIP 2046: temporary disabled reduce gas fee for precompiles from 700 to 40
         if gasCost >= 0:
           cpt.gasMeter.consumeGas(gasCost, reason = $Call)
 
         cpt.returnData.setLen(0)
 
         if cpt.msg.depth >= MaxCallDepth:
-          debug "Computation Failure",
-            reason = "Stack too deep",
-            maximumDepth = MaxCallDepth,
-            depth = cpt.msg.depth
+          debug "Computation Failure", reason = "Stack too deep", maximumDepth = MaxCallDepth, depth = cpt.msg.depth
           cpt.gasMeter.returnGas(childGasLimit)
           return
 
@@ -288,7 +284,7 @@ const
     let
       cpt = k.cpt
       p = cpt.callCodeParams
-
+    info "callCodeOp", p = p
     cpt.asyncChainTo(ifNecessaryGetAccounts(cpt.vmState, @[p.sender])):
       cpt.asyncChainTo(ifNecessaryGetCodeForAccounts(cpt.vmState, @[p.contractAddress, p.codeAddress])):
         var (gasCost, childGasLimit) = cpt.gasCosts[CallCode].c_handler(
@@ -311,10 +307,7 @@ const
         cpt.returnData.setLen(0)
 
         if cpt.msg.depth >= MaxCallDepth:
-          debug "Computation Failure",
-            reason = "Stack too deep",
-            maximumDepth = MaxCallDepth,
-            depth = cpt.msg.depth
+          debug "Computation Failure", reason = "Stack too deep", maximumDepth = MaxCallDepth, depth = cpt.msg.depth
           cpt.gasMeter.returnGas(childGasLimit)
           return
 
@@ -376,7 +369,7 @@ const
     let
       cpt = k.cpt
       p = cpt.delegateCallParams
-
+    info "delegateCallOp",p=p
     cpt.asyncChainTo(ifNecessaryGetAccounts(cpt.vmState, @[p.sender])):
       cpt.asyncChainTo(ifNecessaryGetCodeForAccounts(cpt.vmState, @[p.contractAddress, p.codeAddress])):
         var (gasCost, childGasLimit) = cpt.gasCosts[DelegateCall].c_handler(
@@ -390,18 +383,13 @@ const
             c_memOffset:      p.memOffset,
             c_memLength:      p.memLength))
 
-        # EIP 2046: temporary disabled
-        # reduce gas fee for precompiles
-        # from 700 to 40
+        # EIP 2046: temporary disabled reduce gas fee for precompiles from 700 to 40
         if gasCost >= 0:
           cpt.gasMeter.consumeGas(gasCost, reason = $DelegateCall)
 
         cpt.returnData.setLen(0)
         if cpt.msg.depth >= MaxCallDepth:
-          debug "Computation Failure",
-            reason = "Stack too deep",
-            maximumDepth = MaxCallDepth,
-            depth = cpt.msg.depth
+          debug "Computation Failure", reason = "Stack too deep", maximumDepth = MaxCallDepth, depth = cpt.msg.depth
           cpt.gasMeter.returnGas(childGasLimit)
           return
 
@@ -452,7 +440,7 @@ const
     let
       cpt = k.cpt
       p = cpt.staticCallParams
-
+    info "staticCallOp", p=p
     cpt.asyncChainTo(ifNecessaryGetAccounts(cpt.vmState, @[p.sender])):
       cpt.asyncChainTo(ifNecessaryGetCodeForAccounts(cpt.vmState, @[p.contractAddress, p.codeAddress])):
         var (gasCost, childGasLimit) = cpt.gasCosts[StaticCall].c_handler(
@@ -479,10 +467,7 @@ const
         cpt.returnData.setLen(0)
 
         if cpt.msg.depth >= MaxCallDepth:
-          debug "Computation Failure",
-            reason = "Stack too deep",
-            maximumDepth = MaxCallDepth,
-            depth = cpt.msg.depth
+          debug "Computation Failure", reason = "Stack too deep", maximumDepth = MaxCallDepth, depth = cpt.msg.depth
           cpt.gasMeter.returnGas(childGasLimit)
           return
 
@@ -549,7 +534,7 @@ const
             post: vm2OpIgnore)),
 
     (opCode: DelegateCall, ## 0xf4, CallCode with persisting sender and value
-     forks: Vm2OpHomesteadAndLater,
+     forks: Vm2OpAllForks,
      name: "delegateCall",
      info: "Message-call into this account with an alternative account's " &
            "code but persisting the current values for sender and value.",
@@ -558,7 +543,7 @@ const
             post: vm2OpIgnore)),
 
     (opCode: StaticCall,   ## 0xfa, Static message-call into an account
-     forks: Vm2OpByzantiumAndLater,
+     forks: Vm2OpAllForks,
      name: "staticCall",
      info: "Static message-call into an account",
      exec: (prep: vm2OpIgnore,
