@@ -46,12 +46,12 @@ proc setupTxContext*(vmState: BaseVMState,
 # not to have too much duplicated code between sync and async.
 # --Adam
 
-proc preExecComputation(c: Computation) =
+proc preExecComputation*(c: Computation) =
   if not c.msg.isCreate:
     c.vmState.mutateStateDB:
       db.incNonce(c.msg.sender)
 
-proc postExecComputation(c: Computation) =
+proc postExecComputation*(c: Computation) =
   if c.isSuccess:
     if c.fork < FkLondon:
       # EIP-3529: Reduction in refunds

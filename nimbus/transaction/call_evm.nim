@@ -23,7 +23,7 @@ type
     accessList*    : AccessList
     versionedHashes*: VersionedHashes
 
-proc toCallParams(vmState: BaseVMState, cd: RpcCallData,
+proc toCallParams*(vmState: BaseVMState, cd: RpcCallData,
                   globalGasCap: GasInt, baseFee: Option[UInt256] = some 0.u256,
                   forkOverride = none(EVMFork)): CallParams
     {.gcsafe, raises: [ValueError].} =
@@ -72,17 +72,12 @@ proc toCallParams(vmState: BaseVMState, cd: RpcCallData,
 
 proc rpcCallEvm*(call: RpcCallData, header: BlockHeader, com: CommonRef): CallResult {.gcsafe, raises: [CatchableError].} =
   const globalGasCap = 0 # TODO: globalGasCap should configurable by user
-  let topHeader = BlockHeader(
-    parentHash: header.blockHash,
-    timestamp:  getTime().utc.toTime,
-    gasLimit:   0.GasInt,        
-    )    
+  let topHeader = BlockHeader(parentHash: header.blockHash,timestamp:  getTime().utc.toTime,gasLimit:   0.GasInt)    
   let vmState = BaseVMState.new(topHeader, com)
   let params  = toCallParams(vmState, call, globalGasCap)
 
   var dbTx = com.db.db.beginTransaction()
   defer: dbTx.dispose() # always dispose state changes
-  info "rpcCallEvm"
   runComputation(params)
 
 proc rpcEstimateGas*(cd: RpcCallData, header: BlockHeader, com: CommonRef, gasCap: GasInt): GasInt {.gcsafe, raises: [CatchableError].} =

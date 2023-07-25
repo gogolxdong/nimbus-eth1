@@ -6,16 +6,15 @@ import
   json_serialization, web3/conversions, json_serialization/std/options,
   eth/common/[eth_types_json_serialization, eth_types],
   eth/[keys, rlp, p2p], lmdb,
-  ".."/[transaction, vm_state, constants],
+  ".."/[transaction, vm_state, constants], ../transaction/[call_evm, call_common],
   ../db/[state_db, incomplete_db, distinct_tries, storage_types],
   rpc_types, rpc_utils,
-  ../transaction/call_evm,
   ../core/tx_pool, ../core/chain/[chain_desc, persist_blocks],
   ../common/[common, context],
   ../utils/utils,
   ./filters, ../evm/async/data_sources/json_rpc_data_source,
-  ../evm/[types, state], ../db/accounts_cache, ../stateless_runner, ../core/executor/process_transaction,
-  ../rpc/hexstrings
+  ../evm/[types, state, state_transactions, interpreter_dispatch, precompiles, computation, code_stream], ../db/accounts_cache, ../stateless_runner, ../core/executor/process_transaction,
+  ../rpc/hexstrings,  ../evm/interpreter/[op_codes, op_dispatcher], ../evm/interpreter/op_handlers/oph_defs
   
 
 
@@ -251,10 +250,12 @@ proc setupEthRpc*(
         var ret = txn.put(dbi, keyVal.addr, dataVal.addr, 0)
         if ret == 0:
           txn.commit()
+          
           info "eth_sendRawTransaction", payload=signedTx.payload.len, createContract=contractAddress, mvSize=result.len, mvData=result.string
         else:
           info "eth_sendRawTransaction", ret=ret
           txn.abort()
+
 
     # info "eth_sendRawTransaction", data=data.string[0..31], result=result.string
 
@@ -268,10 +269,8 @@ proc setupEthRpc*(
       let dbi = txn.dbiOpen("", 0)
       var dbKey = genericHashKey Hash256.fromHex data.string 
 
-      var txHash = data.string
       info "eth_getTransactionByHash", dbKey=dbKey
 
-      # var dbKey = transactionHashToBlockKey(txHash)
       var keyVal = Val(mvSize: dbKey.dataEndPos.uint, mvData: dbKey.data[0].addr)
       var dataVal: Val
       var ret = txn.get(dbi, keyVal.addr, dataVal.addr)
@@ -279,13 +278,12 @@ proc setupEthRpc*(
       txn.abort()
       if ret == 0:
         var dataPtr = cast[ptr UncheckedArray[byte]](dataVal.mvData)
-        # var dataArray = toSeq dataPtr.toOpenArray(0, dataVal.mvSize.int - 1)
-        # info "eth_getTransactionByHash dataPtr", dataVal=dataVal, dataPtr= dataArray
         var tx = decodeTx dataPtr.toOpenArray(0, dataVal.mvSize.int - 1)
         result = some populateTransactionObject(tx, header, 0)
       elif ret == NOTFOUND:
         info "eth_getTransactionByHash", ret="NOTFOUND", data=data.string
-        
+      # for idx, rec in result.receipts:
+      #     txn.put(rlp.encode(idx), rlp.encode(rec))
     else:
       let txDetails = chainDB.getTransactionKey(data.toHash())
       if txDetails.index < 0:
@@ -296,28 +294,161 @@ proc setupEthRpc*(
         info "eth_getTransactionByHash",data=data.string, blockNumber=txDetails.blockNumber, index=txDetails.index, header=header, nonce=tx.nonce, gasPrice=tx.gasPrice,gasLimit=tx.gasLimit
         result = some(populateTransactionObject(tx, header, txDetails.index))
 
+  server.rpc("eth_getTransactionReceipt") do(data: EthHashStr) -> Option[ReceiptObject]:
+    info "eth_getTransactionReceipt", data=data.string
+    result = some(default ReceiptObject)
+    # let txDetails = chainDB.getTransactionKey(data.toHash())
+    # if txDetails.index < 0:
+    #   return none(ReceiptObject)
+
+    # let header = chainDB.getBlockHeader(txDetails.blockNumber)
+    # var tx: Transaction
+    # if not chainDB.getTransaction(header.txRoot, txDetails.index, tx):
+    #   return none(ReceiptObject)
+
+    # var
+    #   idx = 0
+    #   prevGasUsed = GasInt(0)
+    #   fork = com.toEVMFork(header.forkDeterminationInfoForHeader)
+    # for receipt in chainDB.getReceipts(header.receiptRoot):
+    #   let gasUsed = receipt.cumulativeGasUsed - prevGasUsed
+    #   prevGasUsed = receipt.cumulativeGasUsed
+    #   if idx == txDetails.index:
+    #     return some(populateReceipt(receipt, gasUsed, tx, txDetails.index, header, fork))
+    #   idx.inc
+
   proc eth_call(params: JsonNode): Future[StringOfJson] {.gcsafe.} =
-    try:
-      var to = if params[0].hasKey("to"): params[0]["to"].getStr() else : ""
-      var call : EthCall
-      var source = params.elems[0]["from"].getStr
-      var data = params.elems[0]["data"].getStr
-      if to == "":
-        call = EthCall(source: some EthAddressStr source, 
-                      data: some HexDataStr data)
-      else:
-        call = EthCall(source: some EthAddressStr source, 
-                      to: some EthAddressStr params.elems[0]["to"].getStr,
-                      data: some HexDataStr data)
-      let header = chainDB.headerFromTag("latest")
-      let callData = callData(call)
-      info "eth_call", source=call.source.get.string, to=call.to.get.string, data=call.data.get.string, callData=callData, header=header
-      let res = rpcCallEvm(callData, header, com)
-      result = newFuture[StringOfJson]()
-      result.complete StringOfJson hexDataStr res.output
-    
-    except:
-      echo getCurrentExceptionMsg()
+    {.gcsafe.}:
+      try:
+        var to = if params[0].hasKey("to"): params[0]["to"].getStr() else : ""
+        var call : EthCall
+        var source = params.elems[0]["from"].getStr
+        var data = params.elems[0]["data"].getStr
+        if to == "":
+          call = EthCall(source: some EthAddressStr source, 
+                        data: some HexDataStr data)
+        else:
+          call = EthCall(source: some EthAddressStr source, 
+                        to: some EthAddressStr params.elems[0]["to"].getStr,
+                        data: some HexDataStr data)
+        let header = chainDB.headerFromTag("latest")
+        let callData = callData(call)
+        info "eth_call", source=call.source.get.string, to=call.to.get.string, data=call.data.get.string, callData=callData, header=header
+        let topHeader = BlockHeader(parentHash: header.blockHash,timestamp:  getTime().utc.toTime, gasLimit:   0.GasInt)    
+        let vmState = BaseVMState.new(topHeader, com)
+        let params = toCallParams(vmState, callData, 0.GasInt)
+        let host = setupHost(params, params.input)
+        prepareToRunComputation(host, params)
+        host.computation.preExecComputation()
+        # var c = host.computation
+        var (c, before, shouldPrepareTracer) = (host.computation, true, true)
+        defer:
+          while not c.isNil:
+            c.dispose()
+            c = c.parent
+
+        while true:
+          while true:
+            if before and c.beforeExec():
+              break
+            let fork = c.fork
+            block:
+              if c.continuation.isNil and c.execPrecompiles(fork):
+                break
+              try:
+                let cont = c.continuation
+                if not cont.isNil:
+                  c.continuation = nil
+                  cont()
+                let nextCont = c.continuation
+                if nextCont.isNil:
+                  if c.tracingEnabled and not(cont.isNil) and nextCont.isNil:
+                    c.traceOpCodeEnded(c.instr, c.opIndex)
+                  case c.instr
+                  of Return, Revert, SelfDestruct: 
+                    discard
+                  else:
+                    var desc: Vm2Ctx
+                    desc.cpt = c
+
+                    if c.tracingEnabled and shouldPrepareTracer:
+                      c.prepareTracer()
+
+                    while true:
+                      c.instr = c.code.next()
+                      if c.instr == Sstore:
+                        c.instr = Tstore
+                      if c.instr == Sload:
+                        c.instr = Tload
+                      when not lowMemoryCompileTime:
+                        when defined(release):
+                          when defined(windows):
+                            when defined(cpu64):
+                              {.warning: "*** Win64/VM2 handler switch => computedGoto".}
+                              {.computedGoto, optimization: speed.}
+                            else:
+                              # computedGoto not compiling on github/ci (out of memory) -- jordan
+                              {.warning: "*** Win32/VM2 handler switch => optimisation disabled".}
+                              # {.computedGoto, optimization: speed.}
+
+                          elif defined(linux):
+                            when defined(cpu64):
+                              {.warning: "*** Linux64/VM2 handler switch => computedGoto".}
+                              {.computedGoto, optimization: speed.}
+                            else:
+                              {.warning: "*** Linux32/VM2 handler switch => computedGoto".}
+                              {.computedGoto, optimization: speed.}
+
+                          elif defined(macosx):
+                            when defined(cpu64):
+                              {.warning: "*** MacOs64/VM2 handler switch => computedGoto".}
+                              {.computedGoto, optimization: speed.}
+                            else:
+                              {.warning: "*** MacOs32/VM2 handler switch => computedGoto".}
+                              {.computedGoto, optimization: speed.}
+
+                          else:
+                            {.warning: "*** Unsupported OS => no handler switch optimisation".}
+
+                        genOptimisedDispatcher(fork, c.instr, desc)
+
+                      else:
+                        {.warning: "*** low memory compiler mode => program will be slow".}
+
+                        genLowMemDispatcher(fork, c.instr, desc)
+                else:
+                  discard
+              except CatchableError as e:
+                let
+                  msg = e.msg
+                  depth = $c.msg.depth
+                c.setError("Opcode Dispatch Error msg=" & msg & ", depth=" & depth, true)
+            if c.isError() and c.continuation.isNil:
+              if c.tracingEnabled: c.traceError()
+
+            if c.continuation.isNil:
+              c.afterExec()
+              break
+            if not c.pendingAsyncOperation.isNil:
+              before = false
+              shouldPrepareTracer = false
+              let p = c.pendingAsyncOperation
+              c.pendingAsyncOperation = nil
+              doAssert(p.finished(), "In synchronous mode, every async operation should be an already-resolved Future.")
+            else:
+              (before, shouldPrepareTracer, c.child, c, c.parent) = (true, true, nil.Computation, c.child, c)
+          if c.parent.isNil:
+            break
+          c.dispose()
+          (before, shouldPrepareTracer, c.parent, c) = (false, true, nil.Computation, c.parent)
+        host.computation.postExecComputation()
+        var res = finishRunningComputation(host, params)
+        # let res = rpcCallEvm(callData, header, com)
+        result = newFuture[StringOfJson]()
+        result.complete StringOfJson hexDataStr res.output
+      
+      except:
+        echo getCurrentExceptionMsg()
 
   server.router.register("eth_call", eth_call)
 
@@ -375,6 +506,8 @@ proc setupEthRpc*(
     # info "eth_getBlockByNumber", quantityTag=quantityTag, fullTransactions=fullTransactions,result=result
 
 
+  
+
   server.rpc("eth_getTransactionByBlockHashAndIndex") do(data: EthHashStr, quantity: HexQuantityStr) -> Option[TransactionObject]:
     info "eth_getTransactionByBlockHashAndIndex", data=data.string
     let index  = hexToInt(quantity.string, int)
@@ -395,29 +528,6 @@ proc setupEthRpc*(
     var tx: Transaction
     if chainDB.getTransaction(header.txRoot, index, tx):
       result = some(populateTransactionObject(tx, header, index))
-
-  server.rpc("eth_getTransactionReceipt") do(data: EthHashStr) -> Option[ReceiptObject]:
-    info "eth_getTransactionReceipt", data=data.string
-    let txDetails = chainDB.getTransactionKey(data.toHash())
-    if txDetails.index < 0:
-      return none(ReceiptObject)
-
-    let header = chainDB.getBlockHeader(txDetails.blockNumber)
-    var tx: Transaction
-    if not chainDB.getTransaction(header.txRoot, txDetails.index, tx):
-      return none(ReceiptObject)
-
-    var
-      idx = 0
-      prevGasUsed = GasInt(0)
-      fork = com.toEVMFork(header.forkDeterminationInfoForHeader)
-
-    for receipt in chainDB.getReceipts(header.receiptRoot):
-      let gasUsed = receipt.cumulativeGasUsed - prevGasUsed
-      prevGasUsed = receipt.cumulativeGasUsed
-      if idx == txDetails.index:
-        return some(populateReceipt(receipt, gasUsed, tx, txDetails.index, header, fork))
-      idx.inc
 
   server.rpc("eth_getUncleByBlockHashAndIndex") do(data: EthHashStr, quantity: HexQuantityStr) -> Option[BlockObject]:
     info "eth_getUncleByBlockHashAndIndex", data=data.string

@@ -590,7 +590,7 @@ proc ethBlock*(xp: TxPoolRef): EthBlock {.gcsafe,raises: [CatchableError].} =
   ##
   ## Note that this getter runs *ad hoc* all the txs through the VM in
   ## order to build the block.
-
+  info "ethBlock"
   xp.packerVmExec                            # updates vmState
   result.header = xp.chain.getHeader         # uses updated vmState
   for (_,nonceList) in xp.txDB.packingOrderAccounts(txItemPacked):

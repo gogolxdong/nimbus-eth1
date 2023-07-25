@@ -47,7 +47,6 @@ func createBloom*(receipts: openArray[Receipt]): Bloom =
   result = bloom.value.toByteArrayBE
 
 proc makeReceipt*(vmState: BaseVMState; txType: TxType): Receipt =
-
   var rec: Receipt
   if vmState.com.forkGTE(Byzantium):
     rec.isHash = false

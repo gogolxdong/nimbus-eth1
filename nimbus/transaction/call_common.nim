@@ -122,7 +122,7 @@ proc initialAccessListEIP2929(call: CallParams) =
       for key in account.storageKeys:
         db.accessList(account.address, UInt256.fromBytesBE(key))
 
-proc setupHost(call: CallParams, contractCode: seq[byte]): TransactionHost =
+proc setupHost*(call: CallParams, contractCode: seq[byte]): TransactionHost =
   let vmState = call.vmState
   vmState.setupTxContext(
     origin       = call.origin.get(call.sender),
@@ -234,7 +234,7 @@ when defined(evmc_enabled):
 # not to have too much duplicated code between sync and async.
 # --Adam
 
-proc prepareToRunComputation(host: TransactionHost, call: CallParams) =
+proc prepareToRunComputation*(host: TransactionHost, call: CallParams) =
   # Must come after `setupHost` for correct fork.
   if not call.noAccessList:
     initialAccessListEIP2929(call)
@@ -267,7 +267,7 @@ proc calculateAndPossiblyRefundGas(host: TransactionHost, call: CallParams): Gas
     host.vmState.mutateStateDB:
       db.addBalance(call.sender, result.u256 * call.gasPrice.u256)
 
-proc finishRunningComputation(host: TransactionHost, call: CallParams): CallResult =
+proc finishRunningComputation*(host: TransactionHost, call: CallParams): CallResult =
   let c = host.computation
 
   let gasRemaining = calculateAndPossiblyRefundGas(host, call)

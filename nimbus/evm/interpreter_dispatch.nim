@@ -1,7 +1,7 @@
 const
   # help with low memory when compiling selectVM() function
   lowmem {.intdefine.}: int = 0
-  lowMemoryCompileTime {.used.} = lowmem > 0
+  lowMemoryCompileTime* {.used.} = lowmem > 0
 
 import
   std/[macros, strformat],
@@ -21,7 +21,7 @@ logScope:
 # Private functions
 # ------------------------------------------------------------------------------
 
-proc selectVM(c: Computation, fork: EVMFork, shouldPrepareTracer: bool) {.gcsafe, raises: [CatchableError].} =
+proc selectVM*(c: Computation, fork: EVMFork, shouldPrepareTracer: bool) {.gcsafe, raises: [CatchableError].} =
   ## Op code execution handler main loop.
   var desc: Vm2Ctx
   desc.cpt = c
@@ -163,14 +163,14 @@ proc afterExecCreate(c: Computation) {.gcsafe, raises: [CatchableError].} =
   else:
     c.rollback()
 
-proc beforeExec(c: Computation): bool {.gcsafe, raises: [ValueError].} =
+proc beforeExec*(c: Computation): bool {.gcsafe, raises: [ValueError].} =
   if not c.msg.isCreate:
     c.beforeExecCall()
     false
   else:
     c.beforeExecCreate()
 
-proc afterExec(c: Computation) {.gcsafe, raises: [CatchableError].} =
+proc afterExec*(c: Computation) {.gcsafe, raises: [CatchableError].} =
   if not c.msg.isCreate:
     c.afterExecCall()
   else:

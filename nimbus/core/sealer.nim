@@ -75,9 +75,8 @@ proc validateSealer*(conf: NimbusConf, ctx: EthContext, chain: ChainRef): Result
 
   ok()
 
-proc generateBlock(engine: SealingEngineRef,
-                   outBlock: var EthBlock): Result[void, string] =
-
+proc generateBlock(engine: SealingEngineRef, outBlock: var EthBlock): Result[void, string] =
+  
   outBlock = engine.txPool.ethBlock()
   if engine.chain.com.consensus == ConsensusType.POS:
     # Stop the block generator if we reach TTD
@@ -89,9 +88,7 @@ proc generateBlock(engine: SealingEngineRef,
     if sealRes.isErr:
       return err("error sealing block header: " & $sealRes.error)
 
-  debug "generated block",
-        blockNumber = outBlock.header.blockNumber,
-        blockHash = blockHash(outBlock.header)
+  info "generated block", blockNumber = outBlock.header.blockNumber, blockHash = blockHash(outBlock.header)
 
   ok()
 
