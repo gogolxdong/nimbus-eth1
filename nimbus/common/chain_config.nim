@@ -387,7 +387,7 @@ proc chainConfigForNetwork*(id: NetworkId): ChainConfig =
     )
   of RinkebyNet:
     ChainConfig(
-      clique:              CliqueOptions(period: some(15), epoch: some(30000)),
+      clique:              CliqueOptions(period: some(3), epoch: some(6000)),
       consensusType:       ConsensusType.POA,
       chainId:             RinkebyNet.ChainId,
       # Genesis:                                           # 2017-04-12 15:20:50 UTC

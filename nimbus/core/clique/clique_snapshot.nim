@@ -264,13 +264,12 @@ proc applyTrail(d: var LocalSnaps): CliqueOkResult
   ok()
 
 
-proc updateSnapshot(d: var LocalSnaps): SnapshotResult
-    {.gcsafe, raises: [CatchableError].} =
+proc updateSnapshot(d: var LocalSnaps): SnapshotResult {.gcsafe, raises: [CatchableError].} =
   ## Find snapshot for header `d.start.header` and assign it to the LRU cache.
   ## This function was expects thet the LRU cache already has a slot allocated
   ## for the snapshot having run `getLruSnaps()`.
-
-  d.say "updateSnapshot begin ", d.start.header.blockNumber.pp(d.parents)
+  
+  info "updateSnapshot begin ", blockNumber=d.start.header.blockNumber
 
   # Search for previous snapshots
   if not d.findSnapshot:
@@ -314,8 +313,7 @@ proc updateSnapshot(d: var LocalSnaps): SnapshotResult
     d.trail.snaps.blockHash.data, d.trail.snaps, INMEMORY_SNAPSHOTS)
 
   if 1 < d.trail.chain.len:
-    d.say "updateSnapshot ok #", d.trail.snaps.blockNumber,
-      " trail.len=", d.trail.chain.len
+    d.say "updateSnapshot ok #", d.trail.snaps.blockNumber, " trail.len=", d.trail.chain.len
 
   ok(d.trail.snaps)
 
@@ -343,7 +341,7 @@ proc cliqueSnapshotSeq*(c: Clique; header: BlockHeader;
       return ok(rc.value)
 
   # Avoid deep copy, sequence will not be changed by `updateSnapshot()`
-  parents.shallow
+  # parents.shallow
 
   var snaps = LocalSnaps(
     c:       c,
@@ -383,7 +381,7 @@ proc cliqueSnapshotSeq*(c: Clique; hash: Hash256;
     return err((errUnknownHash,""))
 
   # Avoid deep copy, sequence will not be changed by `updateSnapshot()`
-  parents.shallow
+  # parents.shallow
 
   var snaps = LocalSnaps(
     c:       c,

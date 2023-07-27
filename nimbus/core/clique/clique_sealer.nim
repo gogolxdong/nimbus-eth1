@@ -168,9 +168,7 @@ proc sealHash*(header: BlockHeader): Hash256 {.gcsafe, raises: [].} =
 
 
 # clique/clique.go(599): func (c *Clique) Seal(chain [..]
-proc seal*(c: Clique; ethBlock: var EthBlock):
-           Result[void,CliqueError] {.gcsafe,
-            raises: [CatchableError].} =
+proc seal*(c: Clique; ethBlock: var EthBlock): Result[void,CliqueError] {.gcsafe, raises: [CatchableError].} =
   ## This implementation attempts to create a sealed block using the local
   ## signing credentials.
 
@@ -220,8 +218,7 @@ proc seal*(c: Clique; ethBlock: var EthBlock):
       let rndWiggleSec = c.cfg.rand((wiggle.inSeconds and int.high).int)
       delay += initDuration(seconds = rndWiggleSec)
 
-    trace "Out-of-turn signing requested",
-      wiggle = $wiggle
+    trace "Out-of-turn signing requested", wiggle = $wiggle
 
   # Sign all the things!
   try:

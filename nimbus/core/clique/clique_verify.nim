@@ -315,7 +315,7 @@ proc cliqueVerifySeq(c: Clique; com: CommonRef;
   ## Note that the sequence argument must be write-accessible, even though it
   ## will be left untouched by this function.
   if 0 < headers.len:
-    headers.shallow
+    # headers.shallow
 
     block:
       var blind: seq[BlockHeader]

@@ -209,23 +209,54 @@ proc setupEthRpc*(
 
     result = hexDataStr(rlpTx)
 
-  server.rpc("eth_sendTransaction") do(data: TxSend) -> EthHashStr:
-    info "eth_sendTransaction", data=data
-    let
-      address = data.source.toAddress
-      acc     = ctx.am.getAccount(address).tryGet()
+  proc eth_sendTransaction(params: JsonNode): Future[StringOfJson] {.gcsafe.} =
+    info "eth_sendTransaction", params=params
+    try:
+      var to = if params[0].hasKey("to"): params[0]["to"].getStr() else : ""
+      var send : TxSend
+      if to == "":
+        send = TxSend(source: EthAddressStr params.elems[0]["from"].getStr, 
+                            data: HexDataStr params.elems[0]["data"].getStr)
+      else:
+        send = unpackArg(params, "call", type(TxSend))
+      let
+        address = send.source.toAddress
+        acc     = ctx.am.getAccount(address).tryGet()
 
-    if not acc.unlocked:
-      raise newException(ValueError, "Account locked, please unlock it first")
+      if not acc.unlocked:
+        raise newException(ValueError, "Account locked, please unlock it first")
 
-    let
-      accDB    = stateDBFromTag("latest")
-      tx       = unsignedTx(data, chainDB, accDB.getNonce(address) + 1)
-      eip155   = com.isEIP155(com.syncCurrent)
-      signedTx = signTransaction(tx, acc.privateKey, com.chainId, eip155)
+      let
+        accDB    = stateDBFromTag("latest")
+        tx       = unsignedTx(send, chainDB, accDB.getNonce(address) + 1)
+        eip155   = com.isEIP155(com.syncCurrent)
+        signedTx = signTransaction(tx, acc.privateKey, com.chainId, eip155)
 
-    txPool.add(signedTx)
-    result = rlpHash(signedTx).ethHashStr
+      txPool.add(signedTx)
+      result = newFuture[StringOfJson]()
+      result.complete StringOfJson rlpHash(signedTx).ethHashStr
+    
+    except:
+      echo "eth_sendTransaction:",getCurrentExceptionMsg()
+
+  server.router.register("eth_sendTransaction", eth_sendTransaction)
+  # server.rpc("eth_sendTransaction") do(data: TxSend) -> EthHashStr:
+  #   info "eth_sendTransaction", data=data
+  #   let
+  #     address = data.source.toAddress
+  #     acc     = ctx.am.getAccount(address).tryGet()
+
+  #   if not acc.unlocked:
+  #     raise newException(ValueError, "Account locked, please unlock it first")
+
+  #   let
+  #     accDB    = stateDBFromTag("latest")
+  #     tx       = unsignedTx(data, chainDB, accDB.getNonce(address) + 1)
+  #     eip155   = com.isEIP155(com.syncCurrent)
+  #     signedTx = signTransaction(tx, acc.privateKey, com.chainId, eip155)
+
+  #   txPool.add(signedTx)
+  #   result = rlpHash(signedTx).ethHashStr
 
   server.rpc("eth_sendRawTransaction") do(data: HexDataStr) -> EthHashStr:
     var
@@ -296,26 +327,26 @@ proc setupEthRpc*(
 
   server.rpc("eth_getTransactionReceipt") do(data: EthHashStr) -> Option[ReceiptObject]:
     info "eth_getTransactionReceipt", data=data.string
-    result = some(default ReceiptObject)
-    # let txDetails = chainDB.getTransactionKey(data.toHash())
-    # if txDetails.index < 0:
-    #   return none(ReceiptObject)
+    # result = some(default ReceiptObject)
+    let txDetails = chainDB.getTransactionKey(data.toHash())
+    if txDetails.index < 0:
+      return none(ReceiptObject)
 
-    # let header = chainDB.getBlockHeader(txDetails.blockNumber)
-    # var tx: Transaction
-    # if not chainDB.getTransaction(header.txRoot, txDetails.index, tx):
-    #   return none(ReceiptObject)
+    let header = chainDB.getBlockHeader(txDetails.blockNumber)
+    var tx: Transaction
+    if not chainDB.getTransaction(header.txRoot, txDetails.index, tx):
+      return none(ReceiptObject)
 
-    # var
-    #   idx = 0
-    #   prevGasUsed = GasInt(0)
-    #   fork = com.toEVMFork(header.forkDeterminationInfoForHeader)
-    # for receipt in chainDB.getReceipts(header.receiptRoot):
-    #   let gasUsed = receipt.cumulativeGasUsed - prevGasUsed
-    #   prevGasUsed = receipt.cumulativeGasUsed
-    #   if idx == txDetails.index:
-    #     return some(populateReceipt(receipt, gasUsed, tx, txDetails.index, header, fork))
-    #   idx.inc
+    var
+      idx = 0
+      prevGasUsed = GasInt(0)
+      fork = com.toEVMFork(header.forkDeterminationInfoForHeader)
+    for receipt in chainDB.getReceipts(header.receiptRoot):
+      let gasUsed = receipt.cumulativeGasUsed - prevGasUsed
+      prevGasUsed = receipt.cumulativeGasUsed
+      if idx == txDetails.index:
+        return some(populateReceipt(receipt, gasUsed, tx, txDetails.index, header, fork))
+      idx.inc
 
   proc eth_call(params: JsonNode): Future[StringOfJson] {.gcsafe.} =
     {.gcsafe.}:
@@ -461,20 +492,23 @@ proc setupEthRpc*(
   #   result = hexDataStr(res.output)
 
   proc eth_estimateGas(params: JsonNode): Future[StringOfJson] {.gcsafe.} =
+    info "eth_estimateGas:",params=params
+    var param = params[0]
     try:
-      var to = if params[0].hasKey("to"): params[0]["to"].getStr() else : ""
+      var to = if param.hasKey("to"): param["to"].getStr() else : ""
+      var value = if param.hasKey("value"): param["value"].getStr() else : ""
+      let header = chainDB.headerFromTag("latest")
       var call : EthCall
       if to == "":
-        call = EthCall(source: some EthAddressStr params.elems[0]["from"].getStr, 
-                            data: some HexDataStr params.elems[0]["data"].getStr)
+        call = EthCall(source: some EthAddressStr param["from"].getStr, 
+                            data: some HexDataStr param["data"].getStr)
       else:
-        call = unpackArg(params, "call", type(EthCall))
-      let header = chainDB.headerFromTag("latest")
+        call = unpackArg(param, "call", type(EthCall))
       let callData = callData(call)
       let gasUsed = rpcEstimateGas(callData, header, com, DEFAULT_RPC_GAS_CAP)
       result = newFuture[StringOfJson]()
       result.complete StringOfJson $gasUsed
-    
+      
     except:
       echo "eth_estimateGas:",getCurrentExceptionMsg()
 
