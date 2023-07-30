@@ -175,9 +175,7 @@ proc findSnapshot(d: var LocalSnaps): bool =
       if rc.isOk:
         d.trail.snaps = rc.value.cloneSnapshot
         # d.say "findSnapshot cached ", d.trail.pp
-        trace "Found recently cached voting snapshot",
-          blockNumber = number,
-          blockHash = hash
+        trace "Found recently cached voting snapshot", blockNumber = number, blockHash = hash
         return true
 
     # If an on-disk checkpoint snapshot can be found, use that
@@ -186,9 +184,7 @@ proc findSnapshot(d: var LocalSnaps): bool =
       if rc.isOk:
         d.trail.snaps = rc.value.cloneSnapshot
         d.say "findSnapshot on disk ", d.trail.pp
-        trace "Loaded voting snapshot from disk",
-          blockNumber = number,
-          blockHash = hash
+        trace "Loaded voting snapshot from disk", blockNumber = number, blockHash = hash
         # clique/clique.go(386): snap = s
         return true
 
@@ -200,11 +196,7 @@ proc findSnapshot(d: var LocalSnaps): bool =
       let rc = d.c.cfg.storeSnapshot(d.trail.snaps)
       if rc.isOk:
         d.say "findSnapshot <epoch> ", d.trail.pp
-        trace "Stored voting snapshot to disk",
-          blockNumber = number,
-          blockHash = hash,
-          nSnaps = d.c.cfg.nSnaps,
-          snapsTotal = d.c.cfg.snapsData.toSI
+        trace "Stored voting snapshot to disk", blockNumber = number, blockHash = hash, nSnaps = d.c.cfg.nSnaps, snapsTotal = d.c.cfg.snapsData.toSI
         return true
 
     # No snapshot for this header, get the parent header and move backward
@@ -272,7 +264,7 @@ proc updateSnapshot(d: var LocalSnaps): SnapshotResult {.gcsafe, raises: [Catcha
   info "updateSnapshot begin ", blockNumber=d.start.header.blockNumber
 
   # Search for previous snapshots
-  if not d.findSnapshot:
+  if not d.findSnapshot():
     return err(d.trail.error)
 
   # Initialise range for header chain[] to be applied to `d.trail.snaps`
@@ -296,7 +288,7 @@ proc updateSnapshot(d: var LocalSnaps): SnapshotResult {.gcsafe, raises: [Catcha
 
       # First part (note reverse block numbers.)
       d.subChn.first = inx
-      let rc = d.applyTrail
+      let rc = d.applyTrail()
       if rc.isErr:
         return err(rc.error)
 
@@ -304,7 +296,7 @@ proc updateSnapshot(d: var LocalSnaps): SnapshotResult {.gcsafe, raises: [Catcha
       d.subChn.first = 0
       d.subChn.top = inx
 
-  var rc = d.applyTrail
+  var rc = d.applyTrail()
   if rc.isErr:
     return err(rc.error)
 
@@ -350,7 +342,7 @@ proc cliqueSnapshotSeq*(c: Clique; header: BlockHeader;
       header:  header,
       hash:    header.blockHash))
 
-  let rc = snaps.updateSnapshot
+  let rc = snaps.updateSnapshot()
   if rc.isOk:
     c.snapshot = rc.value
 
@@ -390,7 +382,7 @@ proc cliqueSnapshotSeq*(c: Clique; hash: Hash256;
       header:  header,
       hash:    hash))
 
-  let rc = snaps.updateSnapshot
+  let rc = snaps.updateSnapshot()
   if rc.isOk:
     c.snapshot = rc.value
 

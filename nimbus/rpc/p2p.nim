@@ -259,6 +259,7 @@ proc setupEthRpc*(
   #   result = rlpHash(signedTx).ethHashStr
 
   server.rpc("eth_sendRawTransaction") do(data: HexDataStr) -> EthHashStr:
+    info "eth_sendRawTransaction", data=data.string
     var
       txBytes = hexToSeqByte(data.string)
       signedTx = decodeTx(txBytes)

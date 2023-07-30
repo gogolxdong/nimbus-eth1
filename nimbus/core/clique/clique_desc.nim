@@ -120,10 +120,7 @@ proc `$`*(e: CliqueError): string =
 # Public getters
 # ------------------------------------------------------------------------------
 
-proc recents*(
-    c: Clique;
-      ): var KeyedQueue[CliqueSnapKey,Snapshot]
-      =
+proc recents*(c: Clique;): var KeyedQueue[CliqueSnapKey,Snapshot] =
   ## Getter
   c.recents
 
