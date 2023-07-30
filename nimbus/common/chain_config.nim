@@ -35,6 +35,8 @@ type
     gasUsed*    : GasInt
     parentHash* : Hash256
     baseFeePerGas*: Option[UInt256]
+    dataGasUsed*  : Option[uint64]    # EIP-4844
+    excessDataGas*: Option[uint64]    # EIP-4844
 
   GenesisAlloc* = Table[EthAddress, GenesisAccount]
   GenesisAccount* = object
@@ -65,6 +67,8 @@ type
     gasUsed*    : GasInt
     parentHash* : Hash256
     baseFeePerGas*: Option[UInt256]
+    dataGasUsed*  : Option[uint64]    # EIP-4844
+    excessDataGas*: Option[uint64]    # EIP-4844
 
 const
   CustomNet*  = 0.NetworkId
@@ -163,12 +167,28 @@ proc readValue(reader: var JsonReader, value: var BlockNonce)
   except ValueError as ex:
     reader.raiseUnexpectedValue(ex.msg)
 
+# genesis timestamp is in hex
 proc readValue(reader: var JsonReader, value: var EthTime)
     {.gcsafe, raises: [SerializationError, IOError].} =
   try:
     value = fromHex[int64](reader.readValue(string)).fromUnix
   except ValueError as ex:
     reader.raiseUnexpectedValue(ex.msg)
+
+# but shanghaiTime and cancunTime in config is in int literal
+proc readValue(reader: var JsonReader, value: var Option[EthTime])
+    {.gcsafe, raises: [SerializationError, IOError].} =
+  let tok = reader.lexer.lazyTok
+  if tok == tkNull:
+    reset value
+    reader.lexer.next()
+  else:
+    # both readValue(GasInt/AccountNonce) will be called if
+    # we use readValue(int64/uint64)
+    let tok {.used.} = reader.lexer.tok # resove lazy token
+    let val = reader.lexer.absIntVal.int64
+    value = some val.fromUnix
+    reader.lexer.next()
 
 proc readValue(reader: var JsonReader, value: var seq[byte])
     {.gcsafe, raises: [SerializationError, IOError].} =

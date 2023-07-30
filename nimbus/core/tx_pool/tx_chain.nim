@@ -52,10 +52,10 @@ type
     profit: UInt256          ## Net reward (w/o PoW specific block rewards)
     txRoot: Hash256          ## `rootHash` after packing
     stateRoot: Hash256       ## `stateRoot` after packing
-    # dataGasUsed:
-    #   Option[uint64]         ## EIP-4844 block dataGasUsed
-    # excessDataGas:
-    #   Option[uint64]         ## EIP-4844 block excessDataGas
+    dataGasUsed:
+      Option[uint64]         ## EIP-4844 block dataGasUsed
+    excessDataGas:
+      Option[uint64]         ## EIP-4844 block excessDataGas
 
   TxChainRef* = ref object ##\
     ## State cache of the transaction environment for creating a new\
@@ -373,16 +373,16 @@ proc `txRoot=`*(dh: TxChainRef; val: Hash256) =
   ## Setter
   dh.txEnv.txRoot = val
 
-# proc `withdrawals=`*(dh: TxChainRef, val: sink seq[Withdrawal]) =
-#   dh.withdrawals = system.move(val)
+proc `withdrawals=`*(dh: TxChainRef, val: sink seq[Withdrawal]) =
+  dh.withdrawals = system.move(val)
 
-# proc `excessDataGas=`*(dh: TxChainRef; val: Option[uint64]) =
-#   ## Setter
-#   dh.txEnv.excessDataGas = val
+proc `excessDataGas=`*(dh: TxChainRef; val: Option[uint64]) =
+  ## Setter
+  dh.txEnv.excessDataGas = val
 
-# proc `dataGasUsed=`*(dh: TxChainRef; val: Option[uint64]) =
-#   ## Setter
-#   dh.txEnv.dataGasUsed = val
+proc `dataGasUsed=`*(dh: TxChainRef; val: Option[uint64]) =
+  ## Setter
+  dh.txEnv.dataGasUsed = val
 
 # ------------------------------------------------------------------------------
 # End

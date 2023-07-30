@@ -76,6 +76,10 @@ proc toGenesisHeader*(
   # if fork >= Shanghai:
   #   result.withdrawalsRoot = some(EMPTY_ROOT_HASH)
 
+  if fork >= Cancun:
+    result.dataGasUsed = g.dataGasUsed
+    result.excessDataGas = g.excessDataGas
+
 proc toGenesisHeader*(
     genesis: Genesis;
     fork: HardFork;

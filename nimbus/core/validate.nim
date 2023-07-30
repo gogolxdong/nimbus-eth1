@@ -320,10 +320,14 @@ proc validateTransaction*(
     #     return err("invalid tx: access list len exceeds MAX_VERSIONED_HASHES_LIST_SIZE. len=" &
     #       $tx.versionedHashes.len)
 
-    #   for i, bv in tx.versionedHashes:
-    #     if bv.data[0] != BLOB_COMMITMENT_VERSION_KZG:
-    #       return err("invalid tx: one of blobVersionedHash has invalid version. " &
-    #         "get=$1, expect=$2" % [$bv.data[0].int, $BLOB_COMMITMENT_VERSION_KZG.int])
+      if tx.versionedHashes.len > MaxAllowedBlob.int:
+        return err("invalid tx: versioned hashes len exceeds MaxAllowedBlob=" & $MaxAllowedBlob &
+          ". get=" & $tx.versionedHashes.len)
+
+      for i, bv in tx.versionedHashes:
+        if bv.data[0] != BLOB_COMMITMENT_VERSION_KZG:
+          return err("invalid tx: one of blobVersionedHash has invalid version. " &
+            "get=$1, expect=$2" % [$bv.data[0].int, $BLOB_COMMITMENT_VERSION_KZG.int])
 
       # ensure that the user was willing to at least pay the current data gasprice
       let dataGasPrice = getDataGasPrice(excessDataGas)
