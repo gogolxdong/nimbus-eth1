@@ -10,8 +10,7 @@ import
   ./genesis,
   ../utils/[utils, ec_recover],
   ../db/[db_chain, storage_types],
-  ../core/[pow, clique, casper],
-  lmdb
+  ../core/[pow, clique, casper]
 
 export
   chain_config,
@@ -35,7 +34,7 @@ type
     # all purpose storage
     db: ChainDBRef
 
-    lmdbEnv*: LMDBEnv
+    forkDB*: TrieDatabaseRef
     # prune underlying state db?
     pruneTrie: bool
 
@@ -131,8 +130,8 @@ proc init(com      : CommonRef,
           networkId: NetworkId,
           config   : ChainConfig,
           genesis  : Genesis,
-          lmdbEnv: LMDBEnv = newLMDBEnv(".lmdb"),
-          forked: bool = false) {.gcsafe, raises: [CatchableError].} =
+          forkDB = newMemoryDB(),
+          forked: bool = true) {.gcsafe, raises: [CatchableError].} =
 
   config.daoCheck()
 
@@ -167,8 +166,11 @@ proc init(com      : CommonRef,
 
   # By default, history begins at genesis.
   com.startOfHistory = GENESIS_PARENT_HASH
-  com.lmdbEnv = lmdbEnv
+  
   com.forked = forked
+  com.forkDB = forkDB
+  let dbTransaction = com.forkDB.beginTransaction()
+  com.forkDB.setTransactionID(TransactionID  dbTransaction)
 
 proc getTd(com: CommonRef, blockHash: Hash256): Option[DifficultyInt] =
   var td: DifficultyInt
@@ -193,7 +195,7 @@ proc getTdIfNecessary(com: CommonRef, blockHash: Hash256): Option[DifficultyInt]
 # ------------------------------------------------------------------------------
 
 proc new*(_: type CommonRef,db: TrieDatabaseRef, pruneTrie: bool = false, networkId: NetworkId = Bsc,
-        params = networkParams(Bsc), lmdbEnv = newLMDBEnv(".lmdb"), forked=false): CommonRef {.gcsafe, raises: [CatchableError].} =
+        params = networkParams(Bsc), forkDB = newMemoryDB(), forked=true): CommonRef {.gcsafe, raises: [CatchableError].} =
 
   ## If genesis data is present, the forkIds will be initialized
   ## empty data base also initialized with genesis block
@@ -204,13 +206,13 @@ proc new*(_: type CommonRef,db: TrieDatabaseRef, pruneTrie: bool = false, networ
     networkId,
     params.config,
     params.genesis,
-    lmdbEnv,
+    forkDB,
     forked)
 
 proc new*(_: type CommonRef, db: TrieDatabaseRef,config: ChainConfig,pruneTrie: bool = false,
-    networkId: NetworkId = Bsc, lmdbEnv = newLMDBEnv(".lmdb"), forked=false): CommonRef {.gcsafe, raises: [CatchableError].} =
+    networkId: NetworkId = Bsc, forkDB = newMemoryDB(), forked=true): CommonRef {.gcsafe, raises: [CatchableError].} =
   new(result)
-  result.init(db, pruneTrie,networkId,config,nil, lmdbEnv,forked)
+  result.init(db, pruneTrie,networkId,config,nil, forkDB, forked)
 
 proc clone*(com: CommonRef, db: TrieDatabaseRef): CommonRef =
   ## clone but replace the db
@@ -230,7 +232,7 @@ proc clone*(com: CommonRef, db: TrieDatabaseRef): CommonRef =
     pow          : com.pow,
     poa          : com.poa,
     pos          : com.pos,
-    lmdbEnv :     com.lmdbEnv,
+    forkDB :     com.forkDB,
     forked: com.forked
   )
 

@@ -24,7 +24,7 @@ type
     extraValidation: bool ##\
       ## Trigger extra validation, currently within `persistBlocks()`
       ## function only.
-
+      
     verifyFrom: BlockNumber ##\
       ## First block to when `extraValidation` will be applied (only
       ## effective if `extraValidation` is true.)

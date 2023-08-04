@@ -19,8 +19,7 @@ import
   ../../transaction/call_evm,
   ../../rpc/rpc_utils,
   ../../transaction,
-  ../../tracer, 
-  lmdb
+  ../../tracer
   
 
 from web3 import eth_getBalance, BlockIdentifier, Address, newWeb3, close
@@ -437,23 +436,23 @@ method getBlockHeaders*(ctx: EthWireRef, req: BlocksRequest): seq[BlockHeader] {
     #       break
     #   result.add foundBlock
 
-method handleAnnouncedTxs*(ctx: EthWireRef, peer: Peer, txs: openArray[Transaction]) {.gcsafe, raises: [CatchableError].} =
+method handleAnnouncedTxs*(ctx: EthWireRef, peer: Peer, txs: openArray[Transaction]) {.gcsafe, raises: [].} =
   if ctx.enableTxPool != Enabled:
     when trMissingOrDisabledGossipOk:
       notEnabled("handleAnnouncedTxs")
     return
   if txs.len == 0:
     return
-  # info "received new transactions", number = txs.len
   try:
     var header = ctx.chain.currentBlock()
     var body = ctx.db.getBlockBody(header.blockHash)
     
     var asyncOperationFactory = AsyncOperationFactory(maybeDataSource: some(ctx.asyncDataSource))
-    # info "handleAnnouncedTxs", parentHash=header.parentHash, headerHash=header.blockHash, txs=txs.len
     let parentHeader = waitFor ctx.asyncDataSource.fetchBlockHeaderWithHash(header.parentHash)
+    info "handleAnnouncedTxs", header=header, parentHash=header.parentHash, headerHash=header.blockHash, txs=txs.len
 
     let vmState = createVmStateForStatelessMode(ctx.chain.com, header, body, parentHeader, asyncOperationFactory).get
+    info "handleAnnouncedTxs", vmState=vmState
 
     let fork = vmState.com.toEVMFork(header.forkDeterminationInfoForHeader)
 
@@ -466,28 +465,18 @@ method handleAnnouncedTxs*(ctx: EthWireRef, peer: Peer, txs: openArray[Transacti
         var code: seq[byte]
         var balance1 = vmState.stateDB.getBalance(sender)
         let accTx = vmState.stateDB.beginSavepoint
-        try:
-          var txn = ctx.chain.com.lmdbEnv.newTxn()
-          let dbi = txn.dbiOpen("", 0)
-          var keyVal = Val(mvSize: to.len.uint, mvData: to[0].unsafeAddr)
-          var dataVal: Val
-          var ret = txn.get(dbi, keyVal.addr, dataVal.addr) 
-          txn.abort()
-          if ret == 0:
-            var dataPtr = cast[ptr UncheckedArray[byte]](dataVal.mvData)
-            code = toSeq dataPtr.toOpenArray(0, dataVal.mvSize.int - 1)
-          elif ret == NOTFOUND:
-            info "handleAnnouncedTxs", ret="NOTFOUND"
-        except:
-          error "setupHost", error=getCurrentExceptionMsg()
+        let toDbKey = to.keccakHash().contractHashKey()
+        let value = ctx.chain.com.forkDB.get(toDbKey.toOpenArray) 
+        if value.len > 0:
+          code = value
         let gasBurned = tx.txCallEvm(sender, vmState, fork, code)
         
         vmState.stateDB.commit(accTx)
         var balance2 = vmState.stateDB.getBalance(sender)
         info "handleAnnouncedTxs", to=to,code=code.len, blockNumber=header.blockNumber.toHex, txHash = tx.rlpHash, gasBurned=gasBurned, sender=sender, nonce=tx.nonce, gasPrice=tx.gasPrice, gasLimit=tx.gasLimit, balance1=balance1, balance2=balance2, pruneTrie=ctx.chain.com.pruneTrie
     
-  except:
-    echo "handleAnnouncedTxs:", getCurrentExceptionMsg()
+  except CatchableError as e:
+    echo "handleAnnouncedTxs:", e.msg
 
   if ctx.lastCleanup - getTime() > POOLED_STORAGE_TIME_LIMIT:
     ctx.cleanupKnownByPeer()

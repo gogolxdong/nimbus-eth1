@@ -12,22 +12,22 @@ proc generatePrestate*(nimbus, geth: JsonNode, blockNumber: UInt256, parent, hea
     memoryDB = newMemoryDB()
     chainDB = ChainDBRef.new(memoryDB)
 
-  discard chainDB.setHead(parent, true)
-  discard chainDB.persistTransactions(blockNumber, body.transactions)
-  discard chainDB.persistUncles(body.uncles)
+  # discard chainDB.setHead(parent, true)
+  # discard chainDB.persistTransactions(blockNumber, body.transactions)
+  # discard chainDB.persistUncles(body.uncles)
 
-  memoryDB.put(genericHashKey(headerHash).toOpenArray, rlp.encode(header))
-  chainDB.addBlockNumberToHashLookup(header)
+  # memoryDB.put(genericHashKey(headerHash).toOpenArray, rlp.encode(header))
+  # chainDB.addBlockNumberToHashLookup(header)
 
-  for k, v in state:
-    let key = hexToSeqByte(k)
-    let value = hexToSeqByte(v.getStr())
-    memoryDB.put(key, value)
+  # for k, v in state:
+  #   let key = hexToSeqByte(k)
+  #   let value = hexToSeqByte(v.getStr())
+  #   memoryDB.put(key, value)
 
-  var metaData = %{
-    "blockNumber": %blockNumber.toHex,
-    "geth": geth
-  }
+  # var metaData = %{
+  #   "blockNumber": %blockNumber.toHex,
+  #   "geth": geth
+  # }
 
-  metaData.dumpMemoryDB(memoryDB)
-  writeFile("block" & $blockNumber & ".json", metaData.pretty())
+  # metaData.dumpMemoryDB(memoryDB)
+  # writeFile("block" & $blockNumber & ".json", metaData.pretty())

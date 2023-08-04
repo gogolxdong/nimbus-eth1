@@ -202,7 +202,7 @@ proc findSnapshot(d: var LocalSnaps): bool =
     # No snapshot for this header, get the parent header and move backward
     hash = header.parentHash
     # Add to batch (reversed list order, biggest block number comes first)
-    d.trail.chain.add header
+    # d.trail.chain.add header
 
     # Assign parent header
     if 0 < parentsLen:

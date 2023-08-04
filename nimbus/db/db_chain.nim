@@ -3,7 +3,7 @@ import
   stew/[byteutils], eth/trie/[hexary, db],
   eth/[common, rlp], chronicles,
   ".."/[errors, constants, utils/utils],
-  "."/storage_types, ./kvstore_lmdb, lmdb, ../transaction
+  "."/storage_types, ../transaction
 
 export
   db,
@@ -169,8 +169,8 @@ iterator findNewAncestors(db: ChainDBRef; header: BlockHeader): BlockHeader =
 proc addBlockNumberToHashLookup*(db: ChainDBRef; header: BlockHeader) =
   db.db.put(blockNumberToHashKey(header.blockNumber).toOpenArray, rlp.encode(header.hash))
 
-proc persistTransactions*(db: ChainDBRef, blockNumber: BlockNumber, transactions: openArray[Transaction]): Hash256 =
-  var trie = initHexaryTrie(db.db)
+proc persistTransactions*(com: ChainDBRef, blockNumber: BlockNumber, transactions: openArray[Transaction]): Hash256 =
+  var trie = initHexaryTrie(com.db)
   for idx, tx in transactions:
     let
       encodedTx = rlp.encode(tx.removeNetworkPayload)
@@ -179,20 +179,14 @@ proc persistTransactions*(db: ChainDBRef, blockNumber: BlockNumber, transactions
       sender = tx.getSender()
       contractAddress = getRecipient(tx, sender)
     trie.put(rlp.encode(idx), encodedTx)
-    db.db.put(transactionHashToBlockKey(txHash).toOpenArray, rlp.encode(txKey))
+    com.db.put(transactionHashToBlockKey(txHash).toOpenArray, rlp.encode(txKey))
     if tx.to.isNone:
       try:
-        # var lmdbEnv = newLMDBEnv( ".lmdb")
-        # var txn = lmdbEnv.newTxn()
-        # let dbi = txn.dbiOpen("", 0)
-        # var keyVal = Val(mvSize: contractAddress.len.uint, mvData: contractAddress[0].unsafeAddr)
-        # var dataVal = Val(mvSize: tx.payload.len.uint, mvData: tx.payload[0].unsafeAddr)
-        # var ret = txn.put(dbi, keyVal.addr, dataVal.addr, 0)
-        # if ret == 0:
-        #   txn.commit()
+        var contractAddressDbKey = keccakHash(contractAddress).contractHashKey
+        com.db.put(contractAddressDbKey.toOpenArray, tx.payload)
         info "persistTransactions", createContract=contractAddress
-      except:
-        echo "persistTransactions:",getCurrentExceptionMsg()
+      except CatchableError as e:
+        echo "persistTransactions:", e.msg
   trie.rootHash
 
 proc getTransaction*(db: ChainDBRef, txRoot: Hash256, txIndex: int, res: var Transaction): bool =

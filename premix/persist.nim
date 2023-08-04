@@ -16,7 +16,7 @@ else:
   import downloader
 
 const
-  manualCommit = nimbus_db_backend == "lmdb"
+  manualCommit = nimbus_db_backend == "rocksdb"
 
 template persistToDb(db: ChainDB, body: untyped) =
   when manualCommit:

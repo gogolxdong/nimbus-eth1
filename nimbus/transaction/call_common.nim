@@ -1,7 +1,7 @@
 {.push raises: [].}
 
 import
-  chronicles, lmdb, sequtils,
+  chronicles, sequtils,
   eth/common/eth_types, stint, options, stew/ptrops,
   chronos,
   ".."/[vm_types, vm_state, vm_computation, vm_state_transactions],
@@ -175,7 +175,6 @@ proc setupHost*(call: CallParams, contractCode: seq[byte]): TransactionHost =
 
   else:
     var code: seq[byte]
-    info "setupHost", isCreate=call.isCreate
     if call.isCreate:
       let sender = call.sender
       var contractAddress = generateAddress(sender, call.vmState.readOnlyStateDB.getNonce(sender))

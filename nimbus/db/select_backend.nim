@@ -1,5 +1,4 @@
 import strutils, eth/db/kvstore
-import ./kvstore_lmdb
 
 export kvstore
 
@@ -7,7 +6,7 @@ type DbBackend* = enum
   none,
   sqlite,
   rocksdb,
-  lmdb
+  memoryDB
 
 const
   nimbus_db_backend* {.strdefine.} = "rocksdb"
@@ -50,12 +49,7 @@ elif dbBackend == rocksdb:
   proc newChainDB*(path: string): ChainDB =
     let rdb = RocksStoreRef.init(path, "nimbus").tryGet()
     ChainDB(kv: kvStore rdb, rdb: rdb)
-elif dbBackend == lmdb:
-  proc newChainDB*(path = getCurrentDir() / ".lmdb"): ChainDB =
-    var lmdbStoreRef = LMDBStoreRef.init(path).get()
-    ChainDB(kv: kvStore lmdbStoreRef)
 
-  {.error: "lmdb deprecated, needs reimplementing".}
 elif dbBackend == none:
   discard
 

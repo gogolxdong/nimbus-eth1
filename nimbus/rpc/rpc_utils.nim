@@ -31,8 +31,7 @@ func hexToInt*(s: string, T: typedesc[SomeInteger]): T
     result = result shl 4 or readHexChar(s[i]).T
     inc(i)
 
-proc headerFromTag*(chain: ChainDBRef, blockTag: string): BlockHeader
-    {.gcsafe, raises: [CatchableError].} =
+proc headerFromTag*(chain: ChainDBRef, blockTag: string): BlockHeader {.gcsafe, raises: [CatchableError].} =
   let tag = blockTag.toLowerAscii
   case tag
   of "latest": result = chain.getCanonicalHead()

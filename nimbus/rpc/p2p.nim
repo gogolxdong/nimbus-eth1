@@ -5,7 +5,7 @@ import
   json_rpc/[rpcserver,jsonmarshal], hexstrings, stint, stew/byteutils,
   json_serialization, web3/conversions, json_serialization/std/options,
   eth/common/[eth_types_json_serialization, eth_types],
-  eth/[keys, rlp, p2p], lmdb,
+  eth/[keys, rlp, p2p],
   ".."/[transaction, vm_state, constants], ../transaction/[call_evm, call_common],
   ../db/[state_db, incomplete_db, distinct_tries, storage_types],
   rpc_types, rpc_utils,
@@ -34,6 +34,8 @@ proc setupEthRpc*(
     txPool: TxPoolRef, server: RpcServer) =
 
   let chainDB = com.db
+  # let transaction = com.forkDB.beginTransaction()
+  # defer: transaction.dispose()
 
   proc getStateDB(header: BlockHeader): state_db.ReadOnlyStateDB =
     let ac = newAccountStateDB(chainDB.db, header.stateRoot, com.pruneTrie)
@@ -259,7 +261,6 @@ proc setupEthRpc*(
   #   result = rlpHash(signedTx).ethHashStr
 
   server.rpc("eth_sendRawTransaction") do(data: HexDataStr) -> EthHashStr:
-    info "eth_sendRawTransaction", data=data.string
     var
       txBytes = hexToSeqByte(data.string)
       signedTx = decodeTx(txBytes)
@@ -269,27 +270,26 @@ proc setupEthRpc*(
     result = rlpHash(signedTx).ethHashStr
 
     com.forked = true
+    var header = chainDB.headerFromTag("latest")
+    info "eth_sendRawTransaction", data=data.string, header=header
+    
+    com.forkDB.ChainDBRef.setHead(header.blockHash)
+
+    discard com.forkDB.ChainDBRef.persistHeaderToDb(header, com.consensus == ConsensusType.POA, header.parentHash)
+    discard com.forkDB.ChainDBRef.persistTransactions(header.blockNumber, [signedTx])
+    let vmState = BaseVMState.new(header, com)
+    discard com.forkDB.ChainDBRef.persistReceipts(vmState.receipts)
+
     if com.forked:
+      var sender = signedTx.getSender()
+      var dbKey = txHash.genericHashKey()
+      var encoded = rlp.encode(signedTx)
+      com.forkDB.put(dbKey.toOpenArray, encoded)
+      info "eth_sendRawTransaction", dbKey=dbKey, signedTx=signedTx, encoded=encoded
       if signedTx.to.isNone:
-        var txn = com.lmdbEnv.newTxn()
-        let dbi = txn.dbiOpen("", 0)
-        var sender = signedTx.getSender()
         var contractAddress = getRecipient(signedTx, sender)
-        var dbKey = txHash.genericHashKey
-
-        var keyVal = Val(mvSize: dbKey.dataEndPos.uint, mvData: dbKey.data[0].addr)
-        var dataVal = Val(mvSize: txBytes.len.uint, mvData: txBytes[0].addr)
-        var ret = txn.put(dbi, keyVal.addr, dataVal.addr, 0)
-        if ret == 0:
-          txn.commit()
-          
-          info "eth_sendRawTransaction", payload=signedTx.payload.len, createContract=contractAddress, mvSize=result.len, mvData=result.string
-        else:
-          info "eth_sendRawTransaction", ret=ret
-          txn.abort()
-
-
-    # info "eth_sendRawTransaction", data=data.string[0..31], result=result.string
+        var contractKey = contractAddress.keccakHash.contractHashKey()
+        com.forkDB.put(contractKey.toOpenArray, signedTx.payload)
 
   server.rpc("eth_getTransactionByHash") do(data: EthHashStr) -> Option[TransactionObject]:
     # var state = stateDBFromTag("latest")
@@ -297,25 +297,14 @@ proc setupEthRpc*(
     if com.forked:
       let header = chainDB.headerFromTag("latest")
 
-      var txn = com.lmdbEnv.newTxn()
-      let dbi = txn.dbiOpen("", 0)
       var dbKey = genericHashKey Hash256.fromHex data.string 
-
-      info "eth_getTransactionByHash", dbKey=dbKey
-
-      var keyVal = Val(mvSize: dbKey.dataEndPos.uint, mvData: dbKey.data[0].addr)
-      var dataVal: Val
-      var ret = txn.get(dbi, keyVal.addr, dataVal.addr)
-      result = some default TransactionObject
-      txn.abort()
-      if ret == 0:
-        var dataPtr = cast[ptr UncheckedArray[byte]](dataVal.mvData)
-        var tx = decodeTx dataPtr.toOpenArray(0, dataVal.mvSize.int - 1)
+      try:
+        var encoded = com.forkDB.get(dbKey.toOpenArray)
+        var tx = decodeTx encoded
+        info "eth_getTransactionByHash", header=header, dbKey=dbKey, encoded=encoded
         result = some populateTransactionObject(tx, header, 0)
-      elif ret == NOTFOUND:
-        info "eth_getTransactionByHash", ret="NOTFOUND", data=data.string
-      # for idx, rec in result.receipts:
-      #     txn.put(rlp.encode(idx), rlp.encode(rec))
+      except CatchableError as e:
+        error "get", err=e.msg
     else:
       let txDetails = chainDB.getTransactionKey(data.toHash())
       if txDetails.index < 0:
@@ -329,20 +318,24 @@ proc setupEthRpc*(
   server.rpc("eth_getTransactionReceipt") do(data: EthHashStr) -> Option[ReceiptObject]:
     info "eth_getTransactionReceipt", data=data.string
     # result = some(default ReceiptObject)
-    let txDetails = chainDB.getTransactionKey(data.toHash())
+    let txDetails = if com.forked: com.forkDB.ChainDBRef.getTransactionKey(data.toHash())  else : chainDB.getTransactionKey(data.toHash())
+    info "eth_getTransactionReceipt", txDetails=txDetails
     if txDetails.index < 0:
       return none(ReceiptObject)
+    # let header = if com.forked: com.forkDB.ChainDBRef.headerFromTag("latest")  else : chainDB.headerFromTag("latest")
+    let header = if com.forked: com.forkDB.ChainDBRef.getBlockHeader(txDetails.blockNumber)  else : chainDB.getBlockHeader(txDetails.blockNumber)
+    info "eth_getTransactionReceipt", header=header
 
-    let header = chainDB.getBlockHeader(txDetails.blockNumber)
     var tx: Transaction
-    if not chainDB.getTransaction(header.txRoot, txDetails.index, tx):
+    if (com.forked and com.forkDB.ChainDBRef.getTransaction(header.txRoot, txDetails.index, tx).not) or (com.forked.not and chainDB.getTransaction(header.txRoot, txDetails.index, tx).not):
       return none(ReceiptObject)
 
     var
       idx = 0
       prevGasUsed = GasInt(0)
       fork = com.toEVMFork(header.forkDeterminationInfoForHeader)
-    for receipt in chainDB.getReceipts(header.receiptRoot):
+    var receipt = if com.forked: com.forkDB.ChainDBRef.getReceipts(header.receiptRoot) else : chainDB.getReceipts(header.receiptRoot)
+    for receipt in receipt:
       let gasUsed = receipt.cumulativeGasUsed - prevGasUsed
       prevGasUsed = receipt.cumulativeGasUsed
       if idx == txDetails.index:

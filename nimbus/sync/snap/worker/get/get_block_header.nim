@@ -50,8 +50,7 @@ proc getBlockHeader*(
     hdrResp = await peer.getBlockHeaders(hdrReq)
   except CatchableError as e:
     when trSnapTracePacketsOk:
-      trace trSnapRecvError & "waiting for GetByteCodes reply", peer,
-        error=e.msg
+      trace trSnapRecvError & "waiting for GetByteCodes reply", peer, error=e.msg
     return err(GetNetworkProblem)
 
   var hdrRespLen = 0
@@ -97,8 +96,7 @@ proc getBlockHeader*(buddy: SnapBuddyRef; hash: Hash256; ): Future[Result[BlockH
     hdrResp = await peer.getBlockHeaders(hdrReq)
   except CatchableError as e:
     when trSnapTracePacketsOk:
-      trace trSnapRecvError & "waiting for GetByteCodes reply", peer,
-        error=e.msg
+      trace trSnapRecvError & "waiting for GetByteCodes reply", peer, error=e.msg
     return err(GetNetworkProblem)
 
   var hdrRespLen = 0

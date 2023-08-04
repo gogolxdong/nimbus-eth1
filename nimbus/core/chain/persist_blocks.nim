@@ -86,19 +86,28 @@ proc persistBlocksImpl(c: ChainRef; headers: openArray[BlockHeader];bodies: open
       else:
         let res = c.com.validateHeaderAndKinship(header,body,checkSealOK = false) # TODO: how to checkseal from here
         if res.isErr:
-          info "block validation error",
-            msg = res.error
+          info "block validation error", msg = res.error
           return ValidationResult.Error
 
     if NoPersistHeader notin flags:
       # discard c.db.persistHeaderToDb(header, c.com.consensus == ConsensusType.POS, c.com.startOfHistory)
-      discard c.db.persistHeaderToDb(header, c.com.consensus == ConsensusType.POA, header.parentHash)
+      if c.com.forked:
+        discard c.com.forkDB.ChainDBRef.persistHeaderToDb(header, c.com.consensus == ConsensusType.POA, header.parentHash)
+      else:
+        discard c.db.persistHeaderToDb(header, c.com.consensus == ConsensusType.POA, header.parentHash)
 
     if NoSaveTxs notin flags:
-      discard c.db.persistTransactions(header.blockNumber, body.transactions)
+      if c.com.forked:
+        discard c.com.forkDB.ChainDBRef.persistTransactions(header.blockNumber, body.transactions)
+      else:
+        discard c.db.persistTransactions(header.blockNumber, body.transactions)
+
 
     if NoSaveReceipts notin flags:
-      discard c.db.persistReceipts(vmState.receipts)
+      if c.com.forked:
+        discard c.com.forkDB.ChainDBRef.persistReceipts(vmState.receipts)
+      else:
+        discard c.db.persistReceipts(vmState.receipts)
 
     # if NoSaveWithdrawals notin flags and body.withdrawals.isSome:
     #   discard c.db.persistWithdrawals(body.withdrawals.get)
@@ -106,6 +115,7 @@ proc persistBlocksImpl(c: ChainRef; headers: openArray[BlockHeader];bodies: open
     c.com.syncCurrent = header.blockNumber
 
   transaction.commit()
+
 
 # ------------------------------------------------------------------------------
 # Public `ChainDB` methods
