@@ -24,7 +24,7 @@ export
 type
   Genesis* = ref object
     nonce*      : BlockNonce
-    timestamp*  : EthTime
+    timestamp*  : int64
     extraData*  : seq[byte]
     gasLimit*   : GasInt
     difficulty* : DifficultyInt
@@ -34,9 +34,9 @@ type
     number*     : BlockNumber
     gasUsed*    : GasInt
     parentHash* : Hash256
-    baseFeePerGas*: Option[UInt256]
-    dataGasUsed*  : Option[uint64]    # EIP-4844
-    excessDataGas*: Option[uint64]    # EIP-4844
+    # baseFeePerGas*: Option[UInt256]
+    # dataGasUsed*  : Option[uint64]    # EIP-4844
+    # excessDataGas*: Option[uint64]    # EIP-4844
 
   GenesisAlloc* = Table[EthAddress, GenesisAccount]
   GenesisAccount* = object
@@ -56,7 +56,8 @@ type
   GenesisFile* = object
     config      : ChainConfig
     nonce*      : BlockNonce
-    timestamp*  : EthTime
+    # timestamp*  : EthTime
+    timestamp*  : uint64
     extraData*  : seq[byte]
     gasLimit*   : GasInt
     difficulty* : DifficultyInt
@@ -66,9 +67,9 @@ type
     number*     : BlockNumber
     gasUsed*    : GasInt
     parentHash* : Hash256
-    baseFeePerGas*: Option[UInt256]
-    dataGasUsed*  : Option[uint64]    # EIP-4844
-    excessDataGas*: Option[uint64]    # EIP-4844
+    # baseFeePerGas*: Option[UInt256]
+    # dataGasUsed*  : Option[uint64]    # EIP-4844
+    # excessDataGas*: Option[uint64]    # EIP-4844
 
 const
   CustomNet*  = 0.NetworkId
@@ -97,7 +98,6 @@ proc read(rlp: var Rlp, x: var AddressBalance, _: type GenesisAccount): GenesisA
 
 proc decodePrealloc*(data: seq[byte]): GenesisAlloc {.gcsafe, raises: [RlpError].} =
   for tup in rlp.decode(data, seq[AddressBalance]):
-    info "decodePrealloc", tup=tup
     result[tup.address] = tup.account
 
 # borrowed from `lexer.hexCharValue()` :)
@@ -253,7 +253,7 @@ proc toHardFork*(map: ForkTransitionTable, forkDeterminer: ForkDeterminationInfo
   doAssert(false, "unreachable code")
 
 func forkDeterminationInfoForHeader*(header: BlockHeader): ForkDeterminationInfo =
-  forkDeterminationInfo(header.blockNumber, header.timestamp)
+  forkDeterminationInfo(header.blockNumber, header.timestamp.fromUnix)
 
 proc validateChainConfig*(conf: ChainConfig): bool =
   result = true
@@ -479,12 +479,11 @@ proc genesisBlockForNetwork*(id: NetworkId): Genesis {.gcsafe, raises: [ValueErr
       coinbase: EthAddress.fromHex"0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE",
       mixHash: Hash256.fromHex"0x0000000000000000000000000000000000000000000000000000000000000000",
       nonce: 0.toBlockNonce,
-      timestamp: fromUnix(1587390414),
       extraData: hexToSeqByte("0x00000000000000000000000000000000000000000000000000000000000000002a7cdd959bfe8d9487b2a43b33565295a698f7e26488aa4d1955ee33403f8ccb1d4de5fb97c7ade29ef9f4360c606c7ab4db26b016007d3ad0ab86a0ee01c3b1283aa067c58eab4709f85e99d46de5fe685b1ded8013785d6623cc18d214320b6bb6475978f3adfc719c99674c072166708589033e2d9afec2be4ec20253b8642161bc3f444f53679c1f3d472f7be8361c80a4c1e7e9aaf001d0877f1cfde218ce2fd7544e0b2cc94692d4a704debef7bcb61328b8f7166496996a7da21cf1f1b04d9b3e26a3d0772d4c407bbe49438ed859fe965b140dcf1aab71a96bbad7cf34b5fa511d8e963dbba288b1960e75d64430b3230294d12c6ab2aac5c2cd68e80b16b581ea0a6e3c511bbd10f4519ece37dc24887e11b55d7ae2f5b9e386cd1b50a4550696d957cb4900f03a82012708dafc9e1b880fd083b32182b869be8e0922b81f8e175ffde54d797fe11eb03f9e3bf75f1d68bf0b8b6fb4e317a0f9d6f03eaf8ce6675bc60d8c4d90829ce8f72d0163c1d5cf348a862d55063035e7a025f4da968de7e4d7e4004197917f4070f1d6caa02bbebaebb5d7e581e4b66559e635f805ff0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
-      gasLimit: 0x2625a00,
+      gasLimit: 40000000,
       gasUsed: 0,
       difficulty: 1.u256,
-      alloc: decodePrealloc(testnetAllocData)
+      # alloc: decodePrealloc(testnetAllocData)
 
     )
   of MainNet:
@@ -506,7 +505,7 @@ proc genesisBlockForNetwork*(id: NetworkId): Genesis {.gcsafe, raises: [ValueErr
   of RinkebyNet:
     Genesis(
       nonce: 0.toBlockNonce,
-      timestamp: initTime(0x58ee40ba, 0),
+      timestamp: 0,
       extraData: hexToSeqByte("0x52657370656374206d7920617574686f7269746168207e452e436172746d616e42eb768f2244c8811c63729a21a3569731535f067ffc57839b00206d1ad20c69a1981b489f772031b279182d99e65703f0076e4812653aab85fca0f00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
       gasLimit: 4700000,
       difficulty: 1.u256,
@@ -515,7 +514,7 @@ proc genesisBlockForNetwork*(id: NetworkId): Genesis {.gcsafe, raises: [ValueErr
   of GoerliNet:
     Genesis(
       nonce: 0.toBlockNonce,
-      timestamp: initTime(0x5c51a607, 0),
+      timestamp: 0,
       extraData: hexToSeqByte("0x22466c6578692069732061207468696e6722202d204166726900000000000000e0a2bd4258d2768837baa26a28fe71dc079f84c70000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"),
       gasLimit: 0xa00000,
       difficulty: 1.u256,
@@ -524,7 +523,7 @@ proc genesisBlockForNetwork*(id: NetworkId): Genesis {.gcsafe, raises: [ValueErr
   of SepoliaNet:
     Genesis(
       nonce: 0.toBlockNonce,
-      timestamp: initTime(0x6159af19, 0),
+      timestamp: 0,
       extraData: hexToSeqByte("0x5365706f6c69612c20417468656e732c204174746963612c2047726565636521"),
       gasLimit: 0x1c9c380,
       difficulty: 0x20000.u256,

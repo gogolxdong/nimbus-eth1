@@ -3,7 +3,7 @@ import
 
 import
   std/[os, strutils, net],
-  chronicles, web3,
+  chronicles, web3, stew/byteutils,
   chronos,
   eth/[keys, net/nat],
   eth/p2p as eth_p2p,
@@ -66,6 +66,13 @@ proc importBlocks(conf: NimbusConf, com: CommonRef) =
 proc basicServices(nimbus: NimbusNode,conf: NimbusConf,com: CommonRef) =
   nimbus.txPool = TxPoolRef.new(com, conf.engineSigner)
 
+  # txPool must be informed of active head
+  # so it can know the latest account state
+  # e.g. sender nonce, etc
+  let head = com.db.getCanonicalHead()
+  doAssert nimbus.txPool.smartHead(head)
+
+  # chainRef: some name to avoid module-name/filed/function misunderstandings
   nimbus.chainRef = newChain(com)
   if conf.verifyFrom.isSome:
     let verifyFrom = conf.verifyFrom.get()
@@ -374,7 +381,8 @@ proc start(nimbus: NimbusNode, conf: NimbusConf) =
   nimbus.dbBackend = newChainDB(string conf.dataDir)
   let trieDB = trieDB nimbus.dbBackend
   let com = CommonRef.new(trieDB, conf.pruneMode == PruneMode.Full, conf.networkId, conf.networkParams)
-
+  echo "coinbase: ", com.genesisHeader.coinbase
+  com.genesisHeader.coinbase = EthAddress.fromHex("0xffffFFFfFFffffffffffffffFfFFFfffFFFfFFfE")
   com.initializeEmptyDb()
   let protocols = conf.getProtocolFlags()
 

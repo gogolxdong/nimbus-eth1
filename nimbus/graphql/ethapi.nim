@@ -300,17 +300,18 @@ proc getTxs(ctx: GraphqlContextRef, header: BlockHeader): RespResult =
     err("can't get transactions: " & e.msg)
 
 proc getWithdrawals(ctx: GraphqlContextRef, header: BlockHeader): RespResult =
-  try:
-    if header.withdrawalsRoot.isSome:
-      let wds = getWithdrawals(ctx.chainDB, header.withdrawalsRoot.get)
-      var list = respList()
-      for wd in wds:
-        list.add wdNode(ctx, wd)
-      ok(list)
-    else:
-      ok(respNull())
-  except CatchableError as e:
-    err("can't get transactions: " & e.msg)
+  discard
+  # try:
+  #   if header.withdrawalsRoot.isSome:
+  #     let wds = getWithdrawals(ctx.chainDB, header.withdrawalsRoot.get)
+  #     var list = respList()
+  #     for wd in wds:
+  #       list.add wdNode(ctx, wd)
+  #     ok(list)
+  #   else:
+  #     ok(respNull())
+  # except CatchableError as e:
+  #   err("can't get transactions: " & e.msg)
 
 proc getTxAt(ctx: GraphqlContextRef, header: BlockHeader, index: int): RespResult =
   try:
@@ -967,7 +968,7 @@ proc blockGasUsed(ud: RootRef, params: Args, parent: Node): RespResult {.apiPrag
 proc blockTimestamp(ud: RootRef, params: Args, parent: Node): RespResult {.apiPragma.} =
   let ctx = GraphqlContextRef(ud)
   let h = HeaderNode(parent)
-  bigIntNode(h.header.timestamp.toUnix.uint64)
+  bigIntNode(h.header.timestamp.uint64)
 
 proc blockLogsBloom(ud: RootRef, params: Args, parent: Node): RespResult {.apiPragma.} =
   let ctx = GraphqlContextRef(ud)
@@ -1129,11 +1130,11 @@ proc blockBaseFeePerGas(ud: RootRef, params: Args, parent: Node): RespResult {.a
   ok(respNull())
 
 proc blockWithdrawalsRoot(ud: RootRef, params: Args, parent: Node): RespResult {.apiPragma.} =
-  let h = HeaderNode(parent)
-  if h.header.withdrawalsRoot.isSome:
-    resp(h.header.withdrawalsRoot.get)
-  else:
-    ok(respNull())
+  # let h = HeaderNode(parent)
+  # if h.header.withdrawalsRoot.isSome:
+  #   resp(h.header.withdrawalsRoot.get)
+  # else:
+  ok(respNull())
 
 proc blockWithdrawals(ud: RootRef, params: Args, parent: Node): RespResult {.apiPragma.} =
   let ctx = GraphqlContextRef(ud)
@@ -1141,18 +1142,19 @@ proc blockWithdrawals(ud: RootRef, params: Args, parent: Node): RespResult {.api
   getWithdrawals(ctx, h.header)
 
 proc blockBlobGasUsed(ud: RootRef, params: Args, parent: Node): RespResult {.apiPragma.} =
-  let h = HeaderNode(parent)
-  if h.header.dataGasUsed.isSome:
-    longNode(h.header.dataGasUsed.get)
-  else:
-    ok(respNull())
+  discard
+  # let h = HeaderNode(parent)
+  # if h.header.dataGasUsed.isSome:
+  #   longNode(h.header.dataGasUsed.get)
+  # else:
+  #   ok(respNull())
 
 proc blockexcessBlobGas(ud: RootRef, params: Args, parent: Node): RespResult {.apiPragma.} =
   let h = HeaderNode(parent)
-  if h.header.excessDataGas.isSome:
-    longNode(h.header.excessDataGas.get)
-  else:
-    ok(respNull())
+  # if h.header.excessDataGas.isSome:
+  #   longNode(h.header.excessDataGas.get)
+  # else:
+  #   ok(respNull())
 
 const blockProcs = {
   "parent": blockParent,

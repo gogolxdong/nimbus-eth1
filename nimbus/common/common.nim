@@ -43,7 +43,7 @@ type
 
     # cache of genesis
     genesisHash: KeccakHash
-    genesisHeader: BlockHeader
+    genesisHeader*: BlockHeader
 
     # map block number and ttd and time to
     # HardFork
@@ -111,6 +111,7 @@ proc consensusTransition(com: CommonRef, fork: HardFork) =
 
 proc setForkId(com: CommonRef, blockZero: BlockHeader) =
   # com.genesisHash = blockZero.blockHash
+  info "setForkId", blockZero = blockZero, blockHash=blockZero.blockHash
   com.genesisHash = Hash256.fromHex"0D21840ABFF46B96C84B2AC9E10E4F5CDAEB5693CB665DB62A2F3B02D2D57B5B"
   
   let genesisCRC = crc32(0, com.genesisHash.data)
@@ -132,45 +133,35 @@ proc init(com      : CommonRef,
           genesis  : Genesis,
           forkDB = newMemoryDB(),
           forked: bool = true) {.gcsafe, raises: [CatchableError].} =
+  {.gcsafe.}:
+    config.daoCheck()
 
-  config.daoCheck()
+    com.db          = ChainDBRef.new(db)
+    com.pruneTrie   = pruneTrie
+    com.config      = config
+    com.forkTransitionTable = config.toForkTransitionTable()
+    com.networkId   = networkId
+    com.syncProgress= SyncProgress()
 
-  com.db          = ChainDBRef.new(db)
-  com.pruneTrie   = pruneTrie
-  com.config      = config
-  com.forkTransitionTable = config.toForkTransitionTable()
-  com.networkId   = networkId
-  com.syncProgress= SyncProgress()
+    const TimeZero = fromUnix(0)
+    com.hardForkTransition(ForkDeterminationInfo(blockNumber: 0.toBlockNumber, td: some(0.u256), time: some(TimeZero)))
 
-  # com.currentFork and com.consensusType
-  # is set by hardForkTransition.
-  # set it before creating genesis block
-  # TD need to be some(0.u256) because it can be the genesis
-  # already at the MergeFork
-  const TimeZero = fromUnix(0)
-  com.hardForkTransition(ForkDeterminationInfo(blockNumber: 0.toBlockNumber, td: some(0.u256), time: some(TimeZero)))
+    if genesis.isNil.not:
+      info "init", genesis = genesis.repr
+      com.genesisHeader = toGenesisHeader(genesis, com.currentFork, com.db.db)
 
-  # com.forkIds and com.blockZeroHash is set
-  # by setForkId
-  if genesis.isNil.not:
-    com.genesisHeader = toGenesisHeader(genesis, com.currentFork, com.db.db)
-    com.setForkId(com.genesisHeader)
+      com.setForkId(com.genesisHeader)
 
-  # Initalise the PoA state regardless of whether it is needed on the current
-  # network. For non-PoA networks this descriptor is ignored.
-  com.poa = newClique(com.db, com.cliquePeriod, com.cliqueEpoch)
+    com.poa = newClique(com.db, com.cliquePeriod, com.cliqueEpoch)
+    com.pow = PowRef.new
+    com.pos = CasperRef.new
 
-  # Always initialise the PoW epoch cache even though it migh no be used
-  com.pow = PowRef.new
-  com.pos = CasperRef.new
-
-  # By default, history begins at genesis.
-  com.startOfHistory = GENESIS_PARENT_HASH
-  
-  com.forked = forked
-  com.forkDB = forkDB
-  let dbTransaction = com.forkDB.beginTransaction()
-  com.forkDB.setTransactionID(TransactionID  dbTransaction)
+    com.startOfHistory = GENESIS_PARENT_HASH
+    
+    com.forked = forked
+    com.forkDB = forkDB
+    let dbTransaction = com.forkDB.beginTransaction()
+    com.forkDB.setTransactionID(TransactionID  dbTransaction)
 
 proc getTd(com: CommonRef, blockHash: Hash256): Option[DifficultyInt] =
   var td: DifficultyInt
@@ -277,7 +268,7 @@ proc hardForkTransition*(
     com: CommonRef, header: BlockHeader)
     {.gcsafe, raises: [].} =
   com.hardForkTransition(
-    header.parentHash, header.blockNumber, some(header.timestamp))
+    header.parentHash, header.blockNumber, some(header.timestamp.fromUnix))
 
 func toEVMFork*(com: CommonRef, forkDeterminer: ForkDeterminationInfo): EVMFork =
   ## similar to toFork, but produce EVMFork
@@ -350,14 +341,16 @@ proc initializeEmptyDb*(com: CommonRef) {.gcsafe, raises: [CatchableError].} =
   var encode = rlp.encode(com.genesisHash)
   info "initializeEmptyDb", encode=encode, genesisHash = com.genesisHash
 
-  if hashKey.toOpenArray notin trieDB:
+  if hashKey.toOpenArray notin trieDB or hashKey.toOpenArray notin com.forkDB:
     info "Writing genesis to DB", consensusType=com.consensusType
     doAssert(com.genesisHeader.blockNumber.isZero, "can't commit genesis block with number > 0")
-    discard com.db.persistHeaderToDb(com.genesisHeader, com.consensusType == ConsensusType.POA)
-    doAssert(hashKey.toOpenArray in trieDB)
+    if com.forked:
+      discard com.forkDB.ChainDBRef.persistHeaderToDb(com.genesisHeader, com.consensusType == ConsensusType.POA)
+    else:
+      discard com.db.persistHeaderToDb(com.genesisHeader, com.consensusType == ConsensusType.POA)
+    doAssert(hashKey.toOpenArray in trieDB or hashKey.toOpenArray in com.forkDB)
 
-proc syncReqNewHead*(com: CommonRef; header: BlockHeader)
-    {.gcsafe, raises: [].} =
+proc syncReqNewHead*(com: CommonRef; header: BlockHeader) {.gcsafe, raises: [].} =
   ## Used by RPC to update the beacon head for snap sync
   if not com.syncReqNewHead.isNil:
     com.syncReqNewHead(header)

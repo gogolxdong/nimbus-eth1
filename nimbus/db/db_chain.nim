@@ -279,8 +279,8 @@ proc getBlockBody*(db: ChainDBRef, header: BlockHeader, output: var BlockBody): 
     else:
       result = false
 
-  if header.withdrawalsRoot.isSome:
-    output.withdrawals = some(db.getWithdrawals(header.withdrawalsRoot.get))
+  # if header.withdrawalsRoot.isSome:
+    # output.withdrawals = some(db.getWithdrawals(header.withdrawalsRoot.get))
 
 proc getBlockBody*(db: ChainDBRef, blockHash: Hash256, output: var BlockBody): bool =
   var header: BlockHeader
@@ -338,7 +338,7 @@ proc setAsCanonicalChainHead(db: ChainDBRef; headerHash: Hash256): seq[BlockHead
     db.addBlockNumberToHashLookup(h)
 
   db.db.put(canonicalHeadHashKey().toOpenArray, rlp.encode(headerHash))
-
+  info "setAsCanonicalChainHead", headerHash=headerHash
   return newCanonicalHeaders
 
 proc headerExists*(db: ChainDBRef; blockHash: Hash256): bool =
@@ -433,7 +433,7 @@ proc getReceipts*(db: ChainDBRef; receiptRoot: Hash256): seq[Receipt] =
 
 proc persistHeaderToDb*(db: ChainDBRef; header: BlockHeader; forceCanonical: bool;startOfHistory = GENESIS_PARENT_HASH;): seq[BlockHeader] =
   let isStartOfHistory = header.parentHash == startOfHistory
-  let headerHash = header.blockHash
+  let headerHash = if isStartOfHistory: GENESIS_HASH else: header.blockHash
   var headerExists = db.headerExists(header.parentHash)
   if not isStartOfHistory and not headerExists:
     raise newException(ParentNotFound, "Cannot persist block header " & $headerHash & " with unknown parent " & $header.parentHash)
@@ -449,9 +449,11 @@ proc persistHeaderToDb*(db: ChainDBRef; header: BlockHeader; forceCanonical: boo
   try:
     headScore = db.getScore(db.getCanonicalHead().hash)
   except CanonicalHeadNotFound:
+    info "CanonicalHeadNotFound"
     return db.setAsCanonicalChainHead(headerHash)
-
+    
   if score > headScore or forceCanonical:
+    info "forceCanonical"
     return db.setAsCanonicalChainHead(headerHash)
 
 proc persistHeaderToDbWithoutSetHead*(

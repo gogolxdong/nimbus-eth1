@@ -128,9 +128,9 @@ proc prepare*(c: Clique; parent: BlockHeader, header: var BlockHeader): CliqueOk
   header.mixDigest.reset
 
   # Ensure the timestamp has the correct delay
-  header.timestamp = parent.timestamp + c.cfg.period
-  if header.timestamp < getTime():
-    header.timestamp = getTime()
+  header.timestamp = toUnix parent.timestamp.fromUnix + c.cfg.period
+  if header.timestamp.fromUnix < getTime():
+    header.timestamp = getTime().toUnix
 
   ok()
 
@@ -206,7 +206,7 @@ proc seal*(c: Clique; ethBlock: var EthBlock): Result[void,CliqueError] {.gcsafe
       return err((nilCliqueSealSignedRecently, ""))
 
   # Sweet, the protocol permits us to sign the block, wait for our time
-  var delay = header.timestamp - getTime()
+  var delay = header.timestamp.fromUnix - getTime()
   if header.difficulty == DIFF_NOTURN:
     # It's not our turn explicitly to sign, delay it a bit
     let wiggle = c.snapshot.signersThreshold.int64 * WIGGLE_TIME

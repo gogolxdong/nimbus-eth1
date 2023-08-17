@@ -80,9 +80,9 @@ proc prepareHeader(dh: TxChainRef; parent: BlockHeader, timestamp: EthTime)
 
   case dh.com.consensus
   of ConsensusType.POW:
-    dh.prepHeader.timestamp  = timestamp
+    dh.prepHeader.timestamp  = timestamp.toUnix
     dh.prepHeader.difficulty = dh.com.calcDifficulty(
-      dh.prepHeader.timestamp, parent)
+      dh.prepHeader.timestamp.fromUnix, parent)
     dh.prepHeader.coinbase   = dh.miner
     dh.prepHeader.mixDigest.reset
   of ConsensusType.POA:
@@ -109,7 +109,7 @@ proc getTimestamp(dh: TxChainRef, parent: BlockHeader): EthTime =
   of ConsensusType.POW:
     getTime().utc.toTime
   of ConsensusType.POA:
-    let timestamp = parent.timestamp + dh.com.poa.cfg.period
+    let timestamp = parent.timestamp.fromUnix + dh.com.poa.cfg.period
     if timestamp < getTime():
       getTime()
     else:
@@ -134,7 +134,7 @@ proc resetTxEnv(dh: TxChainRef; parent: BlockHeader; fee: Option[UInt256])
   # because that is handled in vmState
   dh.txEnv.vmState = BaseVMState.new(
     parent    = parent,
-    timestamp = dh.prepHeader.timestamp,
+    timestamp = dh.prepHeader.timestamp.fromUnix,
     gasLimit  = (if dh.maxMode: dh.limits.maxLimit else: dh.limits.trgLimit),
     fee       = fee,
     prevRandao= dh.prepHeader.prevRandao,
@@ -177,7 +177,10 @@ proc new*(T: type TxChainRef; com: CommonRef; miner: EthAddress): T
   result.lhwm.hwmMax = MAX_THRESHOLD_PER_CENT
   result.lhwm.gasFloor = DEFAULT_GAS_LIMIT
   result.lhwm.gasCeil  = DEFAULT_GAS_LIMIT
-  result.update(com.db.getCanonicalHead)
+  if com.forked:
+    result.update(com.forkDB.ChainDBRef.getCanonicalHead)
+  else:
+    result.update(com.db.getCanonicalHead)
 
 # ------------------------------------------------------------------------------
 # Public functions
@@ -373,16 +376,16 @@ proc `txRoot=`*(dh: TxChainRef; val: Hash256) =
   ## Setter
   dh.txEnv.txRoot = val
 
-proc `withdrawals=`*(dh: TxChainRef, val: sink seq[Withdrawal]) =
-  dh.withdrawals = system.move(val)
+# proc `withdrawals=`*(dh: TxChainRef, val: sink seq[Withdrawal]) =
+#   dh.withdrawals = system.move(val)
 
-proc `excessDataGas=`*(dh: TxChainRef; val: Option[uint64]) =
-  ## Setter
-  dh.txEnv.excessDataGas = val
+# proc `excessDataGas=`*(dh: TxChainRef; val: Option[uint64]) =
+#   ## Setter
+#   dh.txEnv.excessDataGas = val
 
-proc `dataGasUsed=`*(dh: TxChainRef; val: Option[uint64]) =
-  ## Setter
-  dh.txEnv.dataGasUsed = val
+# proc `dataGasUsed=`*(dh: TxChainRef; val: Option[uint64]) =
+#   ## Setter
+#   dh.txEnv.dataGasUsed = val
 
 # ------------------------------------------------------------------------------
 # End

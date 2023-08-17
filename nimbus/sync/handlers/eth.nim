@@ -445,11 +445,14 @@ method handleAnnouncedTxs*(ctx: EthWireRef, peer: Peer, txs: openArray[Transacti
     return
   try:
     var header = ctx.chain.currentBlock()
+    info "handleAnnouncedTxs", header=header, headerHash=header.blockHash
     var body = ctx.db.getBlockBody(header.blockHash)
     
     var asyncOperationFactory = AsyncOperationFactory(maybeDataSource: some(ctx.asyncDataSource))
+    if header.parentHash == Hash256():
+      header.parentHash = GENESIS_HASH
     let parentHeader = waitFor ctx.asyncDataSource.fetchBlockHeaderWithHash(header.parentHash)
-    info "handleAnnouncedTxs", header=header, parentHash=header.parentHash, headerHash=header.blockHash, txs=txs.len
+    info "handleAnnouncedTxs", parentHash=header.parentHash, txs=txs.len
 
     let vmState = createVmStateForStatelessMode(ctx.chain.com, header, body, parentHeader, asyncOperationFactory).get
     info "handleAnnouncedTxs", vmState=vmState
@@ -475,8 +478,10 @@ method handleAnnouncedTxs*(ctx: EthWireRef, peer: Peer, txs: openArray[Transacti
         var balance2 = vmState.stateDB.getBalance(sender)
         info "handleAnnouncedTxs", to=to,code=code.len, blockNumber=header.blockNumber.toHex, txHash = tx.rlpHash, gasBurned=gasBurned, sender=sender, nonce=tx.nonce, gasPrice=tx.gasPrice, gasLimit=tx.gasLimit, balance1=balance1, balance2=balance2, pruneTrie=ctx.chain.com.pruneTrie
     
-  except CatchableError as e:
-    echo "handleAnnouncedTxs:", e.msg
+  except :
+    error "handleAnnouncedTxs:", err=getCurrentExceptionMsg()
+    # let ex = getCurrentException()
+    # echo getStackTrace(ex)
 
   if ctx.lastCleanup - getTime() > POOLED_STORAGE_TIME_LIMIT:
     ctx.cleanupKnownByPeer()
@@ -486,7 +491,10 @@ method handleAnnouncedTxs*(ctx: EthWireRef, peer: Peer, txs: openArray[Transacti
     txHashes.add rlpHash(tx)
 
   ctx.addToKnownByPeer(txHashes, peer)
-  ctx.txPool.add(txs)
+  try:
+    ctx.txPool.add(txs)
+  except CatchableError as e:
+    echo "handleAnnouncedTxs:", e.msg
 
   var newTxHashes = newSeqOfCap[Hash256](txHashes.len)
   var validTxs = newSeqOfCap[Transaction](txHashes.len)

@@ -25,19 +25,10 @@ proc toGenesisHeader*(
     fork: HardFork;
       ): BlockHeader
       {.gcsafe, raises: [RlpError].} =
-  ## Initialise block chain DB accounts derived from the `genesis.alloc` table
-  ## of the `db` descriptor argument.
-  ##
-  ## The function returns the `Genesis` block header.
-  ##
-
-  # For `eth/trie/db.newMemoryDB()`, the following initialisation is part of
-  # the constructor function which is missing for the permanent constructor
-  # function `eth/trie/db.trieDB()`.
   sdb.db.put(emptyRlpHash.data, emptyRlp)
 
   for address, account in g.alloc:
-    info "toGenesisHeader", address=address, account=account
+    # info "toGenesisHeader", address=address, account=account
     sdb.setAccount(address, newAccount(account.nonce, account.balance))
     sdb.setCode(address, account.code)
 
@@ -47,6 +38,7 @@ proc toGenesisHeader*(
     for k, v in account.storage:
       sdb.setStorage(address, k, v)
 
+  # info "toGenesisHeader", coinbase=g.coinbase
   result = BlockHeader(
     nonce: g.nonce,
     timestamp: g.timestamp,
@@ -62,12 +54,12 @@ proc toGenesisHeader*(
     ommersHash: EMPTY_UNCLE_HASH
   )
   info "toGenesisHeader", header=result
-  if g.baseFeePerGas.isSome:
-    result.baseFee = g.baseFeePerGas.get()
-  elif fork >= London:
-    result.baseFee = EIP1559_INITIAL_BASE_FEE.u256
+  # if g.baseFeePerGas.isSome:
+  #   result.baseFee = g.baseFeePerGas.get()
+  # elif fork >= London:
+  #   result.baseFee = EIP1559_INITIAL_BASE_FEE.u256
 
-  if g.gasLimit.isZero:
+  if g.gasLimit == 0.GasInt:
     result.gasLimit = GENESIS_GAS_LIMIT
 
   if g.difficulty.isZero and fork <= London:
@@ -76,9 +68,9 @@ proc toGenesisHeader*(
   # if fork >= Shanghai:
   #   result.withdrawalsRoot = some(EMPTY_ROOT_HASH)
 
-  if fork >= Cancun:
-    result.dataGasUsed = g.dataGasUsed
-    result.excessDataGas = g.excessDataGas
+  # if fork >= Cancun:
+  #   result.dataGasUsed = g.dataGasUsed
+  #   result.excessDataGas = g.excessDataGas
 
 proc toGenesisHeader*(
     genesis: Genesis;
@@ -99,7 +91,7 @@ proc toGenesisHeader*(
       {.raises: [RlpError].} =
   ## Generate the genesis block header from the `genesis` and `config` argument value.
   let map  = toForkTransitionTable(params.config)
-  let fork = map.toHardFork(forkDeterminationInfo(0.toBlockNumber, params.genesis.timestamp))
+  let fork = map.toHardFork(forkDeterminationInfo(0.toBlockNumber, params.genesis.timestamp.fromUnix))
   toGenesisHeader(params.genesis, fork, db)
 
 # End

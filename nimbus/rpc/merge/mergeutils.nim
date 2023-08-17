@@ -102,7 +102,7 @@ proc toBlockHeader*(payload: ExecutionPayloadV1 | ExecutionPayloadV2): EthBlockH
     blockNumber    : payload.blockNumber.distinctBase.u256,
     gasLimit       : payload.gasLimit.unsafeQuantityToInt64,
     gasUsed        : payload.gasUsed.unsafeQuantityToInt64,
-    timestamp      : fromUnix payload.timestamp.unsafeQuantityToInt64,
+    timestamp      : payload.timestamp.unsafeQuantityToInt64,
     extraData      : bytes payload.extraData,
     mixDigest      : payload.prevRandao.asEthHash, # EIP-4399 redefine `mixDigest` -> `prevRandao`
     nonce          : default(BlockNonce),

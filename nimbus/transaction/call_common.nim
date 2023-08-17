@@ -196,6 +196,10 @@ proc setupHost*(call: CallParams, contractCode: seq[byte]): TransactionHost =
     let cMsg = hostToComputationMessage(host.msg)
     host.computation = newComputation(vmState, cMsg, code)
 
+  vmState.captureStart(host.computation, call.sender, call.to,
+                       call.isCreate, call.input,
+                       call.gasLimit, call.value)
+                       
   return host
 
 when defined(evmc_enabled):
@@ -243,10 +247,9 @@ proc prepareToRunComputation*(host: TransactionHost, call: CallParams) =
       db.subBalance(call.sender, call.gasLimit.u256 * call.gasPrice.u256)
 
       # EIP-4844
-      if fork >= FkCancun:
-        let blobFee = calcDataFee(call.versionedHashes.len,
-          vmState.parent.excessDataGas).GasInt
-        db.subBalance(call.sender, blobFee.u256)
+      # if fork >= FkCancun:
+      #   let blobFee = calcDataFee(call.versionedHashes.len, vmState.parent.excessDataGas).GasInt
+      #   db.subBalance(call.sender, blobFee.u256)
 
 proc calculateAndPossiblyRefundGas(host: TransactionHost, call: CallParams): GasInt =
   let c = host.computation
@@ -276,7 +279,13 @@ proc finishRunningComputation*(host: TransactionHost, call: CallParams): CallRes
 
   let gasRemaining = calculateAndPossiblyRefundGas(host, call)
   # evm gas used without intrinsic gas
-  host.vmState.tracerGasUsed(host.msg.gas - gasRemaining)
+  let gasUsed = host.msg.gas - gasRemaining
+  let error = if c.isError:
+                some(c.error.info)
+              else:
+                none(string)
+
+  host.vmState.captureEnd(c.output, gasUsed, error)
 
   result.isError = c.isError
   result.gasUsed = call.gasLimit - gasRemaining

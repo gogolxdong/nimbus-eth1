@@ -111,8 +111,7 @@ proc init*(sq: var TxStatusTab; size = 10) {.gcsafe, raises: [].} =
   sq.statusList.reset
 
 
-proc insert*(sq: var TxStatusTab; item: TxItemRef): bool
-    {.gcsafe,raises: [KeyError].} =
+proc insert*(sq: var TxStatusTab; item: TxItemRef): bool {.gcsafe,raises: [KeyError].} =
   ## Add transaction `item` to the list. The function has no effect if the
   ## transaction exists, already (apart from returning `false`.)
   let rc = sq.mkInxImpl(item)
@@ -120,12 +119,15 @@ proc insert*(sq: var TxStatusTab; item: TxItemRef): bool
     let inx = rc.value
     sq.size.inc
     inx.addrData.size.inc
-    inx.addrData.gasLimits += item.tx.gasLimit
-    return true
+    try:
+      inx.addrData.gasLimits += item.tx.gasLimit
+      return true
+    except CatchableError as e:
+      echo e.msg
+      return false
 
 
-proc delete*(sq: var TxStatusTab; item: TxItemRef): bool
-    {.gcsafe,raises: [KeyError].} =
+proc delete*(sq: var TxStatusTab; item: TxItemRef): bool {.gcsafe,raises: [KeyError].} =
   let rc = sq.getInxImpl(item)
   if rc.isOk:
     let inx = rc.value

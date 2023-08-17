@@ -240,11 +240,11 @@ proc vmExecCommit(pst: TxPackerStateRef)
   xp.chain.txRoot = pst.tr.rootHash
   xp.chain.stateRoot = vmState.stateDB.rootHash
 
-  if vmState.com.forkGTE(Cancun):
-    # EIP-4844
-    let excessDataGas = calcExcessDataGas(vmState.parent)
-    xp.chain.excessDataGas = some(excessDataGas)
-    xp.chain.dataGasUsed = some(pst.dataGasUsed)
+  # if vmState.com.forkGTE(Cancun):
+  #   # EIP-4844
+  #   let excessDataGas = calcExcessDataGas(vmState.parent)
+  #   xp.chain.excessDataGas = some(excessDataGas)
+    # xp.chain.dataGasUsed = some(pst.dataGasUsed)
 
   proc balanceDelta: UInt256 =
     let postBalance = vmState.readOnlyStateDB.getBalance(xp.chain.feeRecipient)

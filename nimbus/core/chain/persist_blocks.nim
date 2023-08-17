@@ -73,7 +73,6 @@ proc persistBlocksImpl(c: ChainRef; headers: openArray[BlockHeader];bodies: open
       return validationResult
 
     if c.validateBlock and c.extraValidation and c.verifyFrom <= header.blockNumber:
-
       if c.com.consensus == ConsensusType.POA:
         var parent = if 0 < i: @[headers[i-1]] else: @[]
         let rc = c.clique.cliqueVerify(c.com, header,parent)
@@ -92,16 +91,15 @@ proc persistBlocksImpl(c: ChainRef; headers: openArray[BlockHeader];bodies: open
     if NoPersistHeader notin flags:
       # discard c.db.persistHeaderToDb(header, c.com.consensus == ConsensusType.POS, c.com.startOfHistory)
       if c.com.forked:
-        discard c.com.forkDB.ChainDBRef.persistHeaderToDb(header, c.com.consensus == ConsensusType.POA, header.parentHash)
+        discard c.com.forkDB.ChainDBRef.persistHeaderToDb(header, c.com.consensus == ConsensusType.POA, if header.parentHash == Hash256(): c.com.startOfHistory else: header.parentHash)
       else:
-        discard c.db.persistHeaderToDb(header, c.com.consensus == ConsensusType.POA, header.parentHash)
+        discard c.db.persistHeaderToDb(header, c.com.consensus == ConsensusType.POA, if header.parentHash == Hash256(): c.com.startOfHistory else: header.parentHash)
 
     if NoSaveTxs notin flags:
       if c.com.forked:
         discard c.com.forkDB.ChainDBRef.persistTransactions(header.blockNumber, body.transactions)
       else:
         discard c.db.persistTransactions(header.blockNumber, body.transactions)
-
 
     if NoSaveReceipts notin flags:
       if c.com.forked:

@@ -140,7 +140,7 @@ proc verifyCascadingFields(c: Clique; com: CommonRef; header: BlockHeader;
     return err((errUnknownAncestor,""))
 
   # clique/clique.go(330): if parent.Time+c.config.Period > header.Time {
-  if header.timestamp < parent.timestamp + c.cfg.period:
+  if header.timestamp.fromUnix < parent.timestamp.fromUnix + c.cfg.period:
     return err((errInvalidTimestamp,""))
 
   # Verify that the gasUsed is <= gasLimit
@@ -182,7 +182,7 @@ proc verifyHeaderFields(c: Clique; header: BlockHeader): CliqueOkResult =
   ## Check header fields, the ones that do not depend on a parent block.
   # clique/clique.go(250): number := header.Number.Uint64()
   # Don't waste time checking blocks from the future
-  if getTime() < header.timestamp:
+  if getTime() < header.timestamp.fromUnix:
     return err((errFutureBlock,""))
 
   # Checkpoint blocks need to enforce zero beneficiary

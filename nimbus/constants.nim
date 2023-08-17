@@ -32,6 +32,7 @@ const
   GENESIS_DIFFICULTY* =                     1.u256
   GENESIS_GAS_LIMIT* =                      0x2625a00
   GENESIS_PARENT_HASH* =                    ZERO_HASH256
+  GENESIS_HASH* =                           Hash256.fromHex"0x0D21840ABFF46B96C84B2AC9E10E4F5CDAEB5693CB665DB62A2F3B02D2D57B5B"
   GENESIS_COINBASE* =                       ZERO_ADDRESS
   GENESIS_NONCE* =                          "\x00\x00\x00\x00\x00\x00\x00B"
   GENESIS_MIX_HASH* =                       ZERO_HASH256

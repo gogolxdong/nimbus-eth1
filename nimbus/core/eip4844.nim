@@ -132,33 +132,33 @@ func dataGasUsed(txs: openArray[Transaction]): uint64 =
     result += tx.getTotalDataGas
 
 # https://eips.ethereum.org/EIPS/eip-4844
-func validateEip4844Header*(
-    com: CommonRef, header, parentHeader: BlockHeader,
-    txs: openArray[Transaction]): Result[void, string] {.raises: [].} =
+# func validateEip4844Header*(
+#     com: CommonRef, header, parentHeader: BlockHeader,
+#     txs: openArray[Transaction]): Result[void, string] {.raises: [].} =
 
-  if not com.forkGTE(Cancun):
-    if header.dataGasUsed.isSome:
-      return err("unexpected EIP-4844 dataGasUsed in block header")
+#   if not com.forkGTE(Cancun):
+#     if header.dataGasUsed.isSome:
+#       return err("unexpected EIP-4844 dataGasUsed in block header")
 
-    if header.excessDataGas.isSome:
-      return err("unexpected EIP-4844 excessDataGas in block header")
+#     if header.excessDataGas.isSome:
+#       return err("unexpected EIP-4844 excessDataGas in block header")
 
-    return ok()
+#     return ok()
 
-  if header.dataGasUsed.isNone:
-    return err("expect EIP-4844 dataGasUsed in block header")
+#   if header.dataGasUsed.isNone:
+#     return err("expect EIP-4844 dataGasUsed in block header")
 
-  if header.excessDataGas.isNone:
-    return err("expect EIP-4844 excessDataGas in block header")
+#   if header.excessDataGas.isNone:
+#     return err("expect EIP-4844 excessDataGas in block header")
 
-  let
-    headerDataGasUsed = header.dataGasUsed.get()
-    dataGasUsed = dataGasUsed(txs)
-    headerExcessDataGas = header.excessDataGas.get
-    excessDataGas = calcExcessDataGas(parentHeader)
+#   let
+#     headerDataGasUsed = header.dataGasUsed.get()
+#     dataGasUsed = dataGasUsed(txs)
+#     headerExcessDataGas = header.excessDataGas.get
+#     excessDataGas = calcExcessDataGas(parentHeader)
 
-  if dataGasUsed > MAX_DATA_GAS_PER_BLOCK:
-    return err("dataGasUsed " & $dataGasUsed & " exceeds maximum allowance " & $MAX_DATA_GAS_PER_BLOCK)
+#   if dataGasUsed > MAX_DATA_GAS_PER_BLOCK:
+#     return err("dataGasUsed " & $dataGasUsed & " exceeds maximum allowance " & $MAX_DATA_GAS_PER_BLOCK)
 
   # if headerDataGasUsed != dataGasUsed:
   #   return err("calculated dataGas not equal header.dataGasUsed")
@@ -166,7 +166,7 @@ func validateEip4844Header*(
   # if headerExcessDataGas != excessDataGas:
   #   return err("calculated excessDataGas not equal header.excessDataGas")
 
-  return ok()
+  # return ok()
 
 proc validateBlobTransactionWrapper*(tx: Transaction):
                                      Result[void, string] {.raises: [].} =

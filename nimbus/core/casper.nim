@@ -6,8 +6,7 @@
 # at your option.
 # This file may not be copied, modified, or distributed except according to
 # those terms.
-import
-  eth/common
+import times, eth/common
 
 type
   CasperRef* = ref object
@@ -17,7 +16,7 @@ type
 
 proc prepare*(ctx: CasperRef, header: var BlockHeader) =
   header.coinbase   = ctx.feeRecipient
-  header.timestamp  = ctx.timestamp
+  header.timestamp  = ctx.timestamp.toUnix
   header.prevRandao = ctx.prevRandao
   header.difficulty = DifficultyInt.zero
 

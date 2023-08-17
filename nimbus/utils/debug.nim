@@ -42,7 +42,7 @@ proc debug*(h: BlockHeader): string =
   result.add "blockNumber    : " & $h.blockNumber & "\n"
   result.add "gasLimit       : " & $h.gasLimit    & "\n"
   result.add "gasUsed        : " & $h.gasUsed     & "\n"
-  result.add "timestamp      : " & $h.timestamp.toUnix   & "\n"
+  result.add "timestamp      : " & $h.timestamp   & "\n"
   result.add "extraData      : " & $h.extraData   & "\n"
   result.add "mixDigest      : " & $h.mixDigest   & "\n"
   result.add "nonce          : " & $h.nonce       & "\n"
@@ -55,7 +55,7 @@ proc debug*(h: BlockHeader): string =
   #   result.add "dataGasUsed    : " & $h.dataGasUsed.get() & "\n"
   # if h.excessDataGas.isSome:
   #   result.add "excessDataGas  : " & $h.excessDataGas.get() & "\n"
-  # result.add "blockHash      : " & $blockHash(h) & "\n"
+  result.add "blockHash      : " & $blockHash(h) & "\n"
 
 proc dumpAccount(stateDB: AccountsCache, address: EthAddress): JsonNode =
   var storage = newJObject()

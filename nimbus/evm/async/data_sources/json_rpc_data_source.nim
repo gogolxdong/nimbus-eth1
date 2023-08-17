@@ -102,7 +102,7 @@ func blockHeaderFromBlockObject(o: BlockObject): BlockHeader =
     blockNumber: distinctBase(o.number).u256,
     gasLimit: int64(distinctBase(o.gasLimit)),
     gasUsed: int64(distinctBase(o.gasUsed)),
-    timestamp: initTime(int64(distinctBase(o.timestamp)), 0),
+    timestamp: initTime(int64(distinctBase(o.timestamp)), 0).toUnix,
     extraData: distinctBase(o.extraData),
     #mixDigest: o.mixHash.toHash, # AARDVARK what's this?
     nonce: nonce,
@@ -114,6 +114,7 @@ func blockHeaderFromBlockObject(o: BlockObject): BlockHeader =
 
 proc fetchBlockHeaderWithHash*(rpcClient: RpcClient, h: Hash256): Future[BlockHeader] {.async.} =
   let t0 = now()
+  info "fetchBlockHeaderWithHash", hash = h.toWeb3BlockHash.toHash
   let blockObject: BlockObject = await rpcClient.eth_getBlockByHash(h.toWeb3BlockHash, false)
   durationSpentDoingFetches += now() - t0
   fetchCounter += 1

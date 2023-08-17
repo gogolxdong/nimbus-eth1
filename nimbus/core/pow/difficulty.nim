@@ -38,7 +38,7 @@ func calcDifficultyFrontier*(timeStamp: EthTime, parent: BlockHeader): Difficult
   var diff: DifficultyInt
   let adjust  = parent.difficulty div DifficultyBoundDivisorU
   let time = timeStamp.toUnix()
-  let parentTime = parent.timestamp.toUnix()
+  let parentTime = parent.timestamp
 
   if time - parentTime < DurationLimit:
     diff = parent.difficulty + adjust
@@ -62,7 +62,7 @@ func calcDifficultyHomestead*(timeStamp: EthTime, parent: BlockHeader): Difficul
   #        ) + 2^(periodCount - 2)
 
   let time = timeStamp.toUnix()
-  let parentTime = parent.timestamp.toUnix()
+  let parentTime = parent.timestamp
   let parentDifficulty = cast[Int256](parent.difficulty)
 
   # 1 - (block_timestamp - parent_timestamp) # 10
@@ -102,8 +102,8 @@ func makeDifficultyCalculator(bombDelay: static[int], timeStamp: EthTime, parent
   #         (parent_diff / 2048 * max((2 if len(parent.uncles) else 1) - ((timestamp - parent.timestamp) # 9), -99))
   #        ) + 2^(periodCount - 2)
 
-  let time = timeStamp.toUnix()
-  let parentTime = parent.timestamp.toUnix()
+  let time = timeStamp.toUnix
+  let parentTime = parent.timestamp
   let parentDifficulty = cast[Int256](parent.difficulty)
 
   # (2 if len(parent_uncles) else 1) - (block_timestamp - parent_timestamp) # 9

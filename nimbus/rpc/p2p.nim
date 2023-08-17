@@ -359,7 +359,7 @@ proc setupEthRpc*(
         let header = chainDB.headerFromTag("latest")
         let callData = callData(call)
         info "eth_call", source=call.source.get.string, to=call.to.get.string, data=call.data.get.string, callData=callData, header=header
-        let topHeader = BlockHeader(parentHash: header.blockHash,timestamp:  getTime().utc.toTime, gasLimit:   0.GasInt)    
+        let topHeader = BlockHeader(parentHash: header.blockHash,timestamp:  getTime().utc.toTime.toUnix, gasLimit:   0.GasInt)    
         let vmState = BaseVMState.new(topHeader, com)
         let params = toCallParams(vmState, callData, 0.GasInt)
         let host = setupHost(params, params.input)

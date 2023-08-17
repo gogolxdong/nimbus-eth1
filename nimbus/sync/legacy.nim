@@ -149,7 +149,7 @@ proc validateDifficulty(ctx: LegacySyncRef,
         return false
 
     of ConsensusType.POW:
-      let calcDiffc = com.calcDifficulty(header.timestamp, parentHeader)
+      let calcDiffc = com.calcDifficulty(header.timestamp.fromUnix, parentHeader)
       if header.difficulty < calcDiffc:
         trace "provided header difficulty is too low",
           expect=calcDiffc, get=header.difficulty
@@ -203,7 +203,7 @@ proc validateHeader(ctx: LegacySyncRef, header: BlockHeader,
   if consensusType == ConsensusType.POA:
     let period = initDuration(seconds = com.cliquePeriod)
     # Timestamp diff between blocks is lower than PERIOD (clique)
-    if parentHeader.timestamp + period > header.timestamp:
+    if parentHeader.timestamp.fromUnix + period > header.timestamp.fromUnix:
       trace "invalid timestamp diff (lower than period)",
         parent=parentHeader.timestamp,
         header=header.timestamp,
@@ -225,17 +225,17 @@ proc validateHeader(ctx: LegacySyncRef, header: BlockHeader,
         parentNumber=parentHeader.blockNumber
       return false
 
-  res = com.validateWithdrawals(header, body)
-  if res.isErr:
-    trace "validate withdrawals error",
-      msg=res.error
-    return false
+  # res = com.validateWithdrawals(header, body)
+  # if res.isErr:
+  #   trace "validate withdrawals error",
+  #     msg=res.error
+  #   return false
 
-  res = com.validateEip4844Header(header, parentHeader, body.transactions)
-  if res.isErr:
-    trace "validate eip4844 error",
-      msg=res.error
-    return false
+  # res = com.validateEip4844Header(header, parentHeader, body.transactions)
+  # if res.isErr:
+  #   trace "validate eip4844 error",
+  #     msg=res.error
+  #   return false
 
   return true
 

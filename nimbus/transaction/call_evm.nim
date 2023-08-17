@@ -72,7 +72,7 @@ proc toCallParams*(vmState: BaseVMState, cd: RpcCallData,
 
 proc rpcCallEvm*(call: RpcCallData, header: BlockHeader, com: CommonRef): CallResult {.gcsafe, raises: [CatchableError].} =
   const globalGasCap = 0 # TODO: globalGasCap should configurable by user
-  let topHeader = BlockHeader(parentHash: header.blockHash,timestamp:  getTime().utc.toTime,gasLimit:   0.GasInt)    
+  let topHeader = BlockHeader(parentHash: header.blockHash,timestamp:  getTime().utc.toTime.toUnix, gasLimit:   0.GasInt)    
   let vmState = BaseVMState.new(topHeader, com)
   let params  = toCallParams(vmState, call, globalGasCap)
 
@@ -83,7 +83,7 @@ proc rpcCallEvm*(call: RpcCallData, header: BlockHeader, com: CommonRef): CallRe
 proc rpcEstimateGas*(cd: RpcCallData, header: BlockHeader, com: CommonRef, gasCap: GasInt): GasInt {.gcsafe, raises: [CatchableError].} =
   let topHeader = BlockHeader(
     parentHash: header.blockHash,
-    timestamp:  getTime().utc.toTime,
+    timestamp:  getTime().utc.toTime.toUnix(),
     gasLimit:   0.GasInt,          
     ) 
   let vmState = BaseVMState.new(topHeader, com)

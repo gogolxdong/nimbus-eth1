@@ -115,7 +115,7 @@ proc miningHash(header: BlockHeader): Hash256 =
     blockNumber: header.blockNumber,
     gasLimit:    header.gasLimit,
     gasUsed:     header.gasUsed,
-    timestamp:   header.timestamp,
+    timestamp:   header.timestamp.fromUnix,
     extraData:   header.extraData)
 
   rlp.encode(miningHeader).keccakHash

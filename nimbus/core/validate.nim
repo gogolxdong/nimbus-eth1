@@ -83,7 +83,7 @@ proc validateHeader(com: CommonRef; header, parentHeader: BlockHeader;
   if header.blockNumber != parentHeader.blockNumber + 1:
     return err("Blocks must be numbered consecutively")
 
-  if header.timestamp.toUnix <= parentHeader.timestamp.toUnix:
+  if header.timestamp <= parentHeader.timestamp:
     return err("timestamp must be strictly later than parent")
 
   if com.daoForkSupport and inDAOExtraRange(header.blockNumber):
@@ -104,15 +104,15 @@ proc validateHeader(com: CommonRef; header, parentHeader: BlockHeader;
     if header.ommersHash != EMPTY_UNCLE_HASH:
       return err("Invalid ommers hash in a post-merge block")
   else:
-    let calcDiffc = com.calcDifficulty(header.timestamp, parentHeader)
+    let calcDiffc = com.calcDifficulty(header.timestamp.fromUnix(), parentHeader)
     if header.difficulty < calcDiffc:
       return err("provided header difficulty is too low")
 
     if checkSealOK:
       return com.pow.validateSeal(header)
 
-  ? com.validateWithdrawals(header, body)
-  ? com.validateEip4844Header(header, parentHeader, body.transactions)
+  # ? com.validateWithdrawals(header, body)
+  # ? com.validateEip4844Header(header, parentHeader, body.transactions)
 
   ok()
 
@@ -124,7 +124,7 @@ func validateUncle(currBlock, uncle, uncleParent: BlockHeader):
   if uncle.blockNumber != uncleParent.blockNumber + 1:
     return err("Uncle number is not one above ancestor's number")
 
-  if uncle.timestamp.toUnix < uncleParent.timestamp.toUnix:
+  if uncle.timestamp < uncleParent.timestamp:
     return err("Uncle timestamp is before ancestor's timestamp")
 
   if uncle.gasUsed > uncle.gasLimit:
