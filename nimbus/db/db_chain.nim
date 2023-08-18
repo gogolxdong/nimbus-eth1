@@ -68,8 +68,18 @@ proc getHash(db: ChainDBRef, key: DbKey, output: var Hash256): bool {.inline.} =
 
 proc getCanonicalHead*(db: ChainDBRef): BlockHeader =
   var headHash: Hash256
-  if not db.getHash(canonicalHeadHashKey(), headHash) or not db.getBlockHeader(headHash, result):
+  var hashKey = canonicalHeadHashKey()
+  info "getCanonicalHead", hashKey=hashKey.toOpenArray
+  
+  var gotHash = db.getHash(hashKey, headHash)
+  info "getCanonicalHead", headHash=headHash
+
+  var gotHeader = db.getBlockHeader(headHash, result)
+  info "getCanonicalHead", header=result
+
+  if not gotHash  or not gotHeader:
     raise newException(CanonicalHeadNotFound, "No canonical head set for this chain")
+
 
 proc getCanonicalHeaderHash*(db: ChainDBRef): Hash256 =
   discard db.getHash(canonicalHeadHashKey(), result)
@@ -337,8 +347,9 @@ proc setAsCanonicalChainHead(db: ChainDBRef; headerHash: Hash256): seq[BlockHead
   for h in newCanonicalHeaders:
     db.addBlockNumberToHashLookup(h)
 
-  db.db.put(canonicalHeadHashKey().toOpenArray, rlp.encode(headerHash))
-  info "setAsCanonicalChainHead", headerHash=headerHash
+  var hashKey = canonicalHeadHashKey()
+  db.db.put(hashKey.toOpenArray, rlp.encode(headerHash))
+  info "setAsCanonicalChainHead", hashKey=hashKey.toOpenArray, headerHash= headerHash
   return newCanonicalHeaders
 
 proc headerExists*(db: ChainDBRef; blockHash: Hash256): bool =

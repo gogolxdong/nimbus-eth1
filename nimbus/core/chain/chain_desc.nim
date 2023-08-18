@@ -70,6 +70,9 @@ proc pow*(c: ChainRef): PowRef =
   ## Getter
   c.com.pow
 
+proc forkDB*(c: ChainRef): ChainDBRef =
+  c.com.forkDB.ChainDBRef
+  
 proc db*(c: ChainRef): ChainDBRef =
   c.com.db
 

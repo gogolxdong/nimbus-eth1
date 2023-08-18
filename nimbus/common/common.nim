@@ -147,7 +147,6 @@ proc init(com      : CommonRef,
     com.hardForkTransition(ForkDeterminationInfo(blockNumber: 0.toBlockNumber, td: some(0.u256), time: some(TimeZero)))
 
     if genesis.isNil.not:
-      info "init", genesis = genesis.repr
       com.genesisHeader = toGenesisHeader(genesis, com.currentFork, com.db.db)
 
       com.setForkId(com.genesisHeader)
@@ -339,7 +338,7 @@ proc initializeEmptyDb*(com: CommonRef) {.gcsafe, raises: [CatchableError].} =
   let trieDB = com.db.db
   var hashKey = canonicalHeadHashKey()
   var encode = rlp.encode(com.genesisHash)
-  info "initializeEmptyDb", encode=encode, genesisHash = com.genesisHash
+  info "initializeEmptyDb", encode=encode, genesisHash = com.genesisHash, forked = com.forked
 
   if hashKey.toOpenArray notin trieDB or hashKey.toOpenArray notin com.forkDB:
     info "Writing genesis to DB", consensusType=com.consensusType

@@ -118,23 +118,19 @@ proc headDiff*(xp: TxPoolRef; newHead: BlockHeader): Result[TxHeadDiffRef,TxInfo
     curHead = xp.chain.head
     curHash = curHead.blockHash
     newHash = newHead.blockHash
-    db      = xp.chain.com.db
+    db      = if xp.chain.com.forked: xp.chain.com.forkDB.ChainDBRef else : xp.chain.com.db
 
   var ignHeader: BlockHeader
   if not db.getBlockHeader(newHash, ignHeader):
     # sanity check
-    warn "Tx-pool head forward for non-existing header",
-      newHead = newHash,
-      newNumber = newHead.blockNumber
+    warn "Tx-pool head forward for non-existing header", newHead = newHash, newNumber = newHead.blockNumber
     return err(txInfoErrForwardHeadMissing)
 
   if not db.getBlockHeader(curHash, ignHeader):
     # This can happen if a `setHead()` is performed, where we have discarded
     # the old head from the chain.
     if curHead.blockNumber <= newHead.blockNumber:
-      warn "Tx-pool head forward from detached current header",
-        curHead = curHash,
-        curNumber = curHead.blockNumber
+      warn "Tx-pool head forward from detached current header", curHead = curHash, curNumber = curHead.blockNumber
       return err(txInfoErrAncestorMissing)
     debug "Tx-pool reset with detached current head", curHeader = curHash, curNumber = curHead.blockNumber, newHeader = newHash, newNumber = newHead.blockNumber
     return err(txInfoErrChainHeadMissing)

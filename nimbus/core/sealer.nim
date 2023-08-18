@@ -155,7 +155,11 @@ func toWithdrawals(list: openArray[WithdrawalV1]): seq[Withdrawal] =
 proc generateExecutionPayload*(engine: SealingEngineRef,
                                payloadAttrs: PayloadAttributesV1 | PayloadAttributesV2): Result[ExecutionPayloadV1OrV2, string] =
   let
-    headBlock = try: engine.chain.db.getCanonicalHead()
+    headBlock = try:
+                  if engine.chain.com.forked: 
+                    engine.chain.forkDB.getCanonicalHead()
+                  else:
+                    engine.chain.db.getCanonicalHead()
                 except CatchableError: return err "No head block in database"
     pos = engine.chain.com.pos
 

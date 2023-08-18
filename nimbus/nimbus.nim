@@ -69,7 +69,7 @@ proc basicServices(nimbus: NimbusNode,conf: NimbusConf,com: CommonRef) =
   # txPool must be informed of active head
   # so it can know the latest account state
   # e.g. sender nonce, etc
-  let head = com.db.getCanonicalHead()
+  let head = if com.forked: com.forkDB.ChainDBRef.getCanonicalHead() else:  com.db.getCanonicalHead() 
   doAssert nimbus.txPool.smartHead(head)
 
   # chainRef: some name to avoid module-name/filed/function misunderstandings
