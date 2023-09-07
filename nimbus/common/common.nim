@@ -151,7 +151,7 @@ proc init(com      : CommonRef,
 
       com.setForkId(com.genesisHeader)
 
-    com.poa = newClique(com.db, com.cliquePeriod, com.cliqueEpoch)
+    com.poa = newClique(if com.forked: com.forkDB.ChainDBRef else: com.db, com.cliquePeriod, com.cliqueEpoch)
     com.pow = PowRef.new
     com.pos = CasperRef.new
 

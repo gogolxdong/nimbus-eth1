@@ -97,7 +97,8 @@ proc currentBlock*(c: ChainRef): BlockHeader
   ## currentBlock retrieves the current head block of the canonical chain.
   ## Ideally the block should be retrieved from the blockchain's internal cache.
   ## but now it's enough to retrieve it from database
-  c.db.getCanonicalHead()
+  if c.com.forked: c.forkDB.getCanonicalHead()
+  else: c.db.getCanonicalHead()
 
 # ------------------------------------------------------------------------------
 # Public `Chain` setters

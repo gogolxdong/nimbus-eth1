@@ -181,6 +181,7 @@ proc setAsCanonicalChainHead(
       ): seq[BlockHeader]
       {.gcsafe, raises: [RlpError,BlockNotFound].} =
   ## Sets the header as the canonical chain HEAD.
+  info "CoreDbRef setAsCanonicalChainHead", headerHash=headerHash
   let header = db.getBlockHeader(headerHash)
 
   var newCanonicalHeaders = sequtils.toSeq(db.findNewAncestors(header))

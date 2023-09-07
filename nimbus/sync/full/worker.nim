@@ -54,7 +54,7 @@ proc topUsedNumber(
     top = 0.toBlockNumber
   try:
     let
-      bestNumber = ctx.chain.db.getCanonicalHead().blockNumber
+      bestNumber = if ctx.chain.com.forked: ctx.chain.forkDB.getCanonicalHead().blockNumber else: ctx.chain.db.getCanonicalHead().blockNumber
       nBackBlocks = backBlocks.toBlockNumber
     # Initialise before best block number
     if nBackBlocks < bestNumber:

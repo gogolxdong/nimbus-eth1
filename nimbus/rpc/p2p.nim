@@ -317,7 +317,6 @@ proc setupEthRpc*(
 
   server.rpc("eth_getTransactionReceipt") do(data: EthHashStr) -> Option[ReceiptObject]:
     info "eth_getTransactionReceipt", data=data.string
-    # result = some(default ReceiptObject)
     let txDetails = if com.forked: com.forkDB.ChainDBRef.getTransactionKey(data.toHash())  else : chainDB.getTransactionKey(data.toHash())
     info "eth_getTransactionReceipt", txDetails=txDetails
     if txDetails.index < 0:

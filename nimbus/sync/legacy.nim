@@ -180,20 +180,15 @@ proc validateHeader(ctx: LegacySyncRef, header: BlockHeader,
 
   var parentHeader: BlockHeader
   if not db.getBlockHeader(header.parentHash, parentHeader):
-    error "can't get parentHeader",
-      hash=header.parentHash, number=header.blockNumber
+    error "can't get parentHeader", hash=header.parentHash, number=header.blockNumber
     return false
 
   if header.blockNumber != parentHeader.blockNumber + 1.toBlockNumber:
-    trace "invalid block number",
-      expect=parentHeader.blockNumber + 1.toBlockNumber,
-      get=header.blockNumber
+    trace "invalid block number", expect=parentHeader.blockNumber + 1.toBlockNumber, get=header.blockNumber
     return false
 
   if header.timestamp <= parentHeader.timestamp:
-    trace "invalid timestamp",
-      parent=parentHeader.timestamp,
-      header=header.timestamp
+    trace "invalid timestamp", parent=parentHeader.timestamp, header=header.timestamp
     return false
 
   let consensusType = com.consensus(header)
@@ -204,25 +199,18 @@ proc validateHeader(ctx: LegacySyncRef, header: BlockHeader,
     let period = initDuration(seconds = com.cliquePeriod)
     # Timestamp diff between blocks is lower than PERIOD (clique)
     if parentHeader.timestamp.fromUnix + period > header.timestamp.fromUnix:
-      trace "invalid timestamp diff (lower than period)",
-        parent=parentHeader.timestamp,
-        header=header.timestamp,
-        period
+      trace "invalid timestamp diff (lower than period)", parent=parentHeader.timestamp, header=header.timestamp, period
       return false
 
   var res = com.validateGasLimitOrBaseFee(header, parentHeader)
   if res.isErr:
-    trace "validate gaslimit error",
-      msg=res.error
+    trace "validate gaslimit error", msg=res.error
     return false
 
   if height.isSome:
     let dif = height.get() - parentHeader.blockNumber
     if not (dif < 8.toBlockNumber and dif > 1.toBlockNumber):
-      trace "uncle block has a parent that is too old or too young",
-        dif=dif,
-        height=height.get(),
-        parentNumber=parentHeader.blockNumber
+      trace "uncle block has a parent that is too old or too young", dif=dif, height=height.get(), parentNumber=parentHeader.blockNumber
       return false
 
   # res = com.validateWithdrawals(header, body)
@@ -908,7 +896,7 @@ proc new*(T: type LegacySyncRef; ethNode: EthereumNode; chain: ChainRef): T {.gc
     trustedPeers:   initHashSet[Peer]())
 
   # finalizedBlock
-  chain.com.syncCurrent = chain.db.getCanonicalHead().blockNumber
+  chain.com.syncCurrent = if chain.com.forked: chain.forkDB.getCanonicalHead().blockNumber else : chain.db.getCanonicalHead().blockNumber
 
 proc start*(ctx: LegacySyncRef) =
   try:

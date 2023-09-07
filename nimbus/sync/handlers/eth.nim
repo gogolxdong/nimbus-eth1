@@ -14,7 +14,8 @@ import
   ../../core/executor/[process_transaction, process_block],
   ../../evm/[types,state],
   ../../db/[storage_types,accounts_cache, state_db, incomplete_db, distinct_tries, db_chain],
-  ../../evm/async/data_sources/json_rpc_data_source, ../../evm/async/[data_sources, operations],
+  ../../evm/async/data_sources/json_rpc_data_source, 
+  ../../evm/async/[data_sources, operations],
   ../../stateless_runner,
   ../../transaction/call_evm,
   ../../rpc/rpc_utils,
@@ -377,7 +378,7 @@ method getStatus*(ctx: EthWireRef): EthState {.gcsafe, raises: [RlpError,EVMErro
   let
     db = ctx.db
     com = ctx.chain.com
-    bestBlock = db.getCanonicalHead()
+    bestBlock = if com.forked: ctx.chain.forkDB.getCanonicalHead() else: db.getCanonicalHead()
     forkId = com.forkId(bestBlock.forkDeterminationInfoForHeader)
 
   EthState(
@@ -445,8 +446,8 @@ method handleAnnouncedTxs*(ctx: EthWireRef, peer: Peer, txs: openArray[Transacti
     return
   try:
     var header = ctx.chain.currentBlock()
-    info "handleAnnouncedTxs", header=header, headerHash=header.blockHash
-    var body = ctx.db.getBlockBody(header.blockHash)
+    info "handleAnnouncedTxs", currentBlock=header, headerHash=header.blockHash
+    var body = if ctx.chain.com.forked: ctx.chain.forkDB.getBlockBody(header.blockHash) else: ctx.db.getBlockBody(header.blockHash)
     
     var asyncOperationFactory = AsyncOperationFactory(maybeDataSource: some(ctx.asyncDataSource))
     if header.parentHash == Hash256():

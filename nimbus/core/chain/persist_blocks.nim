@@ -32,7 +32,7 @@ type
 
 proc persistBlocksImpl(c: ChainRef; headers: openArray[BlockHeader];bodies: openArray[BlockBody], flags: PersistBlockFlags = {}): ValidationResult {.inline, raises: [CatchableError].} =
 
-  let transaction = c.db.db.beginTransaction()
+  let transaction = if c.com.forked : c.com.forkDB.beginTransaction() else: c.db.db.beginTransaction()
   defer: transaction.dispose()
 
   var cliqueState = c.clique.cliqueSave
@@ -64,8 +64,7 @@ proc persistBlocksImpl(c: ChainRef; headers: openArray[BlockHeader];bodies: open
                          else:
                            ValidationResult.OK
     when not defined(release):
-      if validationResult == ValidationResult.Error and
-         body.transactions.calcTxRoot == header.txRoot:
+      if validationResult == ValidationResult.Error and body.transactions.calcTxRoot == header.txRoot:
         dumpDebuggingMetaData(c.com, header, body, vmState)
         warn "Validation error. Debugging metadata dumped."
 
@@ -129,23 +128,39 @@ proc insertBlockWithoutSetHead*(c: ChainRef, header: BlockHeader,
 
 proc setCanonical*(c: ChainRef, header: BlockHeader): ValidationResult {.gcsafe, raises: [CatchableError].} =
   if header.parentHash == Hash256():
-    discard c.db.setHead(header.blockHash)
+    if c.com.forked:
+      discard c.forkDB.setHead(header.blockHash)
+    else:
+      discard c.db.setHead(header.blockHash)
     return ValidationResult.OK
 
   var body: BlockBody
-  if not c.db.getBlockBody(header, body):
-    debug "Failed to get BlockBody", hash = header.blockHash
-    return ValidationResult.Error
+  if c.com.forked:
+    if not c.forkDB.getBlockBody(header, body):
+      debug "Failed to get BlockBody", hash = header.blockHash
+      return ValidationResult.Error
+  else:
+    if not c.db.getBlockBody(header, body):
+      debug "Failed to get BlockBody", hash = header.blockHash
+      return ValidationResult.Error
 
   result = c.persistBlocksImpl([header], [body], {NoPersistHeader, NoSaveTxs})
   if result == ValidationResult.OK:
-    discard c.db.setHead(header.blockHash)
+    if c.com.forked:
+      discard c.forkDB.setHead(header.blockHash)
+    else:
+      discard c.db.setHead(header.blockHash)
 
 proc setCanonical*(c: ChainRef, blockHash: Hash256): ValidationResult {.gcsafe, raises: [CatchableError].} =
   var header: BlockHeader
-  if not c.db.getBlockHeader(blockHash, header):
-    debug "Failed to get BlockHeader", hash = blockHash
-    return ValidationResult.Error
+  if c.com.forked:
+    if not c.forkDB.getBlockHeader(blockHash, header):
+      info "Failed to get BlockHeader", hash = blockHash
+      return ValidationResult.Error
+  else:
+    if not c.db.getBlockHeader(blockHash, header):
+      info "Failed to get BlockHeader", hash = blockHash
+      return ValidationResult.Error
 
   setCanonical(c, header)
 
